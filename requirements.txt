@@ -1,0 +1,31 @@
+# === Core ===
+pandas>=2.1
+numpy>=1.26
+networkx>=3.2
+
+# === CPM Engine ===
+pycritical>=1.8.2
+
+# === MCP Server ===
+mcp>=1.25,<2
+
+# === Streamlit Viewer ===
+streamlit>=1.31
+streamlit-aggrid>=1.2.1.post2
+plotly>=5.18
+
+# === Calendar ===
+holidays>=0.43
+workalendar>=17.0
+
+# === Excel I/O ===
+openpyxl>=3.1
+xlsxwriter>=3.1
+
+# === Dev / Test ===
+pytest>=7.4
+pytest-cov>=4.1
+ruff>=0.8
+mypy>=1.10
+pre-commit>=3.7
+python-dotenv>=1.0

@@ -1,0 +1,1 @@
+"""Relationships page placeholder."""

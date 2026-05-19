@@ -1,0 +1,1 @@
+"""Project MCP tools placeholder."""
