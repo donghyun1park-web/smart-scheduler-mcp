@@ -31,3 +31,7 @@ test = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[[tool.mypy.overrides]]
+module = ["networkx", "pandas", "pyCritical"]
+ignore_missing_imports = true

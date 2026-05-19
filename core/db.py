@@ -7,7 +7,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
-from core.models import Activity, Calendar, Project, Relationship, WBS
+from core.models import Activity, ActivityCpmResult, Calendar, Project, Relationship, WBS
 
 
 SCHEMA_VERSION = 1
@@ -174,6 +174,10 @@ def create_wbs(path: str | Path, wbs: WBS) -> WBS:
     return stamped
 
 
+def add_wbs(path: str | Path, wbs: WBS) -> WBS:
+    return create_wbs(path, wbs)
+
+
 def list_wbs(path: str | Path) -> list[WBS]:
     with _connect(path) as conn:
         rows = conn.execute("SELECT * FROM wbs ORDER BY sort_order, code").fetchall()
@@ -195,6 +199,10 @@ def create_activity(path: str | Path, activity: Activity) -> Activity:
             _activity_values(stamped),
         )
     return stamped
+
+
+def add_activity(path: str | Path, activity: Activity) -> Activity:
+    return create_activity(path, activity)
 
 
 def list_activities(path: str | Path) -> list[Activity]:
@@ -224,6 +232,10 @@ def create_relationship(path: str | Path, relationship: Relationship) -> Relatio
     return stamped
 
 
+def add_relationship(path: str | Path, relationship: Relationship) -> Relationship:
+    return create_relationship(path, relationship)
+
+
 def list_relationships(path: str | Path) -> list[Relationship]:
     with _connect(path) as conn:
         rows = conn.execute("SELECT * FROM relationships ORDER BY rel_id").fetchall()
@@ -234,6 +246,54 @@ def list_indexes(path: str | Path) -> set[str]:
     with _connect(path) as conn:
         rows = conn.execute("SELECT name FROM sqlite_master WHERE type = 'index'").fetchall()
     return {row["name"] for row in rows}
+
+
+def update_cpm_results(path: str | Path, results: list[ActivityCpmResult]) -> None:
+    timestamp = _now()
+    with _connect(path) as conn:
+        conn.executemany(
+            """
+            UPDATE activities
+            SET es_workday = ?,
+                ef_workday = ?,
+                ls_workday = ?,
+                lf_workday = ?,
+                total_float = ?,
+                is_critical = ?,
+                updated_at = ?
+            WHERE activity_id = ?
+            """,
+            [
+                (
+                    result.es_workday,
+                    result.ef_workday,
+                    result.ls_workday,
+                    result.lf_workday,
+                    result.total_float,
+                    int(result.is_critical),
+                    timestamp,
+                    result.activity_id,
+                )
+                for result in results
+            ],
+        )
+
+
+def load_project_summary(path: str | Path) -> dict[str, object]:
+    with _connect(path) as conn:
+        project_row = conn.execute("SELECT * FROM projects ORDER BY created_at LIMIT 1").fetchone()
+        activity_count = conn.execute("SELECT COUNT(*) FROM activities").fetchone()[0]
+        relationship_count = conn.execute("SELECT COUNT(*) FROM relationships").fetchone()[0]
+        cost_total = conn.execute("SELECT COALESCE(SUM(cost), 0) FROM activities").fetchone()[0]
+        completion_workday = conn.execute("SELECT MAX(ef_workday) FROM activities").fetchone()[0]
+
+    return {
+        "project": _project_from_row(project_row) if project_row else None,
+        "activity_count": activity_count,
+        "relationship_count": relationship_count,
+        "cost_total": cost_total,
+        "completion_workday": completion_workday,
+    }
 
 
 def _connect(path: str | Path) -> sqlite3.Connection:

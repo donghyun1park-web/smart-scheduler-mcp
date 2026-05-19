@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import date
+from typing import Literal
 
 
 ALLOWED_DISCIPLINES = frozenset({"위생", "공조", "소방", "전기", "자동제어", "공통"})
 ALLOWED_REL_TYPES = frozenset({"FS", "SS", "FF"})
+RelType = Literal["FS", "SS", "FF"]
+Discipline = Literal["위생", "공조", "소방", "전기", "자동제어", "공통"]
 
 
 @dataclass(frozen=True)
@@ -56,6 +59,38 @@ class Activity:
             raise ValueError(f"Unsupported discipline for v0.1: {self.discipline}")
         if self.duration < 0:
             raise ValueError("Activity duration cannot be negative")
+
+
+@dataclass(frozen=True)
+class ActivityCpmResult:
+    activity_id: str
+    code: str
+    es_workday: int
+    ef_workday: int
+    ls_workday: int
+    lf_workday: int
+    total_float: int
+    is_critical: bool
+
+
+@dataclass(frozen=True)
+class CpmResult:
+    activities: list[ActivityCpmResult]
+    total_duration_days: int
+    critical_count: int
+    completion_date: date | None = None
+    cycles_detected: list[list[str]] | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "activities": [activity.__dict__ for activity in self.activities],
+            "total_duration_days": self.total_duration_days,
+            "critical_count": self.critical_count,
+            "completion_date": self.completion_date.isoformat()
+            if self.completion_date
+            else None,
+            "cycles_detected": self.cycles_detected or [],
+        }
 
 
 @dataclass(frozen=True)
