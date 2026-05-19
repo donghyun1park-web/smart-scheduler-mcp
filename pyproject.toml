@@ -33,5 +33,5 @@ testpaths = ["tests"]
 pythonpath = ["."]
 
 [[tool.mypy.overrides]]
-module = ["networkx", "pandas", "pyCritical"]
+module = ["networkx", "openpyxl", "pandas", "pyCritical"]
 ignore_missing_imports = true

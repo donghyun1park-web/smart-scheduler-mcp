@@ -1,0 +1,13 @@
+{
+  "name": "sample",
+  "columns": {
+    "code": "Activity Code",
+    "name": "Activity Name",
+    "wbs_code": "WBS",
+    "duration": "Duration",
+    "discipline": "Discipline",
+    "zone": "Zone",
+    "predecessors": "Predecessors",
+    "cost": "Cost"
+  }
+}

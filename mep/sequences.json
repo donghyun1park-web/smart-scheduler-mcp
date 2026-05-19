@@ -1,4 +1,49 @@
 {
   "version": "0.1",
-  "sequences": []
+  "sequences": [
+    {
+      "discipline": "위생",
+      "key": "plumbing_sanitary_standard",
+      "name": "위생 표준",
+      "steps": [
+        {"key": "sleeve", "name": "슬리브 설치", "duration": 1},
+        {"key": "rough_in", "name": "매립 배관", "duration": 3},
+        {"key": "pressure_test", "name": "수압 시험", "duration": 1},
+        {"key": "fixture", "name": "위생기구 설치", "duration": 2}
+      ]
+    },
+    {
+      "discipline": "위생",
+      "key": "plumbing_pump_standard",
+      "name": "펌프 표준",
+      "steps": [
+        {"key": "foundation", "name": "기초 확인", "duration": 1},
+        {"key": "set", "name": "펌프 반입 설치", "duration": 2},
+        {"key": "pipe", "name": "배관 연결", "duration": 2},
+        {"key": "test", "name": "시운전", "duration": 1}
+      ]
+    },
+    {
+      "discipline": "공조",
+      "key": "hvac_duct_standard",
+      "name": "덕트 표준",
+      "steps": [
+        {"key": "hanger", "name": "행거 설치", "duration": 1},
+        {"key": "duct", "name": "덕트 설치", "duration": 3},
+        {"key": "insulation", "name": "보온", "duration": 2},
+        {"key": "diffuser", "name": "디퓨저 설치", "duration": 1}
+      ]
+    },
+    {
+      "discipline": "공조",
+      "key": "hvac_equipment_standard",
+      "name": "공조기 표준",
+      "steps": [
+        {"key": "carry_in", "name": "장비 반입", "duration": 1},
+        {"key": "set", "name": "장비 설치", "duration": 2},
+        {"key": "connect", "name": "덕트 및 배관 연결", "duration": 2},
+        {"key": "commission", "name": "시운전", "duration": 1}
+      ]
+    }
+  ]
 }
