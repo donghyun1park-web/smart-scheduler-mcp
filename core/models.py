@@ -71,6 +71,10 @@ class ActivityCpmResult:
     lf_workday: int
     total_float: int
     is_critical: bool
+    es_date: date | None = None
+    ef_date: date | None = None
+    ls_date: date | None = None
+    lf_date: date | None = None
 
 
 @dataclass(frozen=True)

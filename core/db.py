@@ -258,6 +258,8 @@ def update_cpm_results(path: str | Path, results: list[ActivityCpmResult]) -> No
                 ef_workday = ?,
                 ls_workday = ?,
                 lf_workday = ?,
+                es_date = ?,
+                ef_date = ?,
                 total_float = ?,
                 is_critical = ?,
                 updated_at = ?
@@ -269,6 +271,8 @@ def update_cpm_results(path: str | Path, results: list[ActivityCpmResult]) -> No
                     result.ef_workday,
                     result.ls_workday,
                     result.lf_workday,
+                    result.es_date.isoformat() if result.es_date else None,
+                    result.ef_date.isoformat() if result.ef_date else None,
                     result.total_float,
                     int(result.is_critical),
                     timestamp,

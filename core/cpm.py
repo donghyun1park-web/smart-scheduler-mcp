@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from core.models import Activity, ActivityCpmResult, CpmResult, Relationship
+from core.models import Activity, ActivityCpmResult, CpmResult, Project, Relationship
 
 
 def calculate_cpm(project_path: str | Path) -> dict[str, object]:
@@ -12,11 +12,40 @@ def calculate_cpm(project_path: str | Path) -> dict[str, object]:
 
 def run_cpm_for_project(project_path: str | Path) -> CpmResult:
     from core import db
+    from core.calendar_utils import KoreanCalendar, map_activity_dates
 
     activities = db.list_activities(project_path)
     relationships = db.list_relationships(project_path)
     result = run_cpm(activities, relationships)
     if not result.cycles_detected:
+        summary = db.load_project_summary(project_path)
+        project = summary["project"]
+        if isinstance(project, Project):
+            calendar_model = db.get_calendar(project_path, project.calendar_id)
+            if calendar_model is not None:
+                calendar = KoreanCalendar(calendar_model)
+                duration_by_id = {
+                    activity.activity_id: activity.duration for activity in activities
+                }
+                mapped = [
+                    map_activity_dates(
+                        activity_result,
+                        project.start_date,
+                        calendar,
+                        duration=duration_by_id[activity_result.activity_id],
+                    )
+                    for activity_result in result.activities
+                ]
+                result = CpmResult(
+                    activities=mapped,
+                    total_duration_days=result.total_duration_days,
+                    critical_count=result.critical_count,
+                    completion_date=max(
+                        (activity.ef_date for activity in mapped if activity.ef_date),
+                        default=None,
+                    ),
+                    cycles_detected=result.cycles_detected,
+                )
         db.update_cpm_results(project_path, result.activities)
     return result
 
