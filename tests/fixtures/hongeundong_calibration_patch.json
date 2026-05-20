@@ -1,0 +1,27 @@
+{
+  "target_finish_date": "2026-06-12",
+  "dependency_overrides": [
+    {
+      "predecessor_id": "a",
+      "successor_id": "b",
+      "dependency_type": "FS",
+      "lag_days": 0,
+      "reason": "timeline sequence"
+    },
+    {
+      "predecessor_id": "b",
+      "successor_id": "c",
+      "dependency_type": "FS",
+      "lag_days": 0,
+      "reason": "timeline sequence"
+    }
+  ],
+  "duration_overrides": [
+    {
+      "task_id": "c",
+      "duration_days": 2,
+      "reason": "field duration check"
+    }
+  ],
+  "notes": "HongEundong minimal calibration fixture"
+}
