@@ -1,78 +1,79 @@
+"""Calibration orchestration: apply patches and compare before/after CPM.
+
+Dataclasses live in :mod:`core.calibration_models`; validation, schedule
+diagnostics, and warning helpers in :mod:`core.calibration_diagnostics`.
+They are re-exported here for backward compatibility — existing imports
+(``from core.calibration import CalibrationPatch`` etc.) keep working.
+"""
+
 from __future__ import annotations
 
 import uuid
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, replace
 from datetime import date
 from pathlib import Path
 
 from core import db
 from core.calendar_utils import KoreanCalendar, map_activity_dates
+from core.calibration_diagnostics import (
+    diagnostic_warnings,
+    field_uat_status,
+    has_error,
+    make_warning,
+    schedule_diagnostics,
+    validate_patch,
+)
+from core.calibration_models import (
+    COST_COVERAGE_THRESHOLD,
+    MAX_ABS_LAG_DAYS,
+    RELATIONSHIP_COVERAGE_THRESHOLD,
+    CalibrationPatch,
+    DependencyOverride,
+    DurationOverride,
+    LagOverride,
+)
 from core.cpm import run_cpm
 from core.models import Activity, Calendar, CpmResult, Project, Relationship
 
-
-RELATIONSHIP_COVERAGE_THRESHOLD = 0.5
-COST_COVERAGE_THRESHOLD = 0.5
-MAX_ABS_LAG_DAYS = 3650
-
-
-@dataclass(frozen=True)
-class DependencyOverride:
-    predecessor_id: str
-    successor_id: str
-    dependency_type: str = "FS"
-    lag_days: int = 0
-    reason: str | None = None
-    source: str = "user_calibration"
-
-
-@dataclass(frozen=True)
-class DurationOverride:
-    task_id: str
-    duration_days: int
-    reason: str | None = None
-    source: str = "user_calibration"
-
-
-@dataclass(frozen=True)
-class LagOverride:
-    predecessor_id: str
-    successor_id: str
-    lag_days: int
-    reason: str | None = None
-    source: str = "user_calibration"
-
-
-@dataclass(frozen=True)
-class CalibrationPatch:
-    project_id: str | None = None
-    target_finish_date: date | None = None
-    dependency_overrides: list[DependencyOverride] | None = None
-    duration_overrides: list[DurationOverride] | None = None
-    lag_overrides: list[LagOverride] | None = None
-    notes: str | None = None
+__all__ = [
+    "CalibrationPatch",
+    "DependencyOverride",
+    "DurationOverride",
+    "LagOverride",
+    "RELATIONSHIP_COVERAGE_THRESHOLD",
+    "COST_COVERAGE_THRESHOLD",
+    "MAX_ABS_LAG_DAYS",
+    "calibrate_project_completion",
+]
 
 
 def calibrate_project_completion(project_path: str | Path, patch: CalibrationPatch) -> dict[str, object]:
+    """Apply a calibration patch and return before/after comparison.
+
+    Pipeline: load project → run baseline CPM → diagnose → validate patch.
+    If validation fails, return early with the baseline. Otherwise apply
+    duration/dependency/lag overrides, rerun CPM, and emit a comparison
+    plus warnings (including any new dependency cycles introduced).
+    """
     activities = db.list_activities(project_path)
     relationships = db.list_relationships(project_path)
     summary = db.load_project_summary(project_path)
     project = summary["project"]
     if not isinstance(project, Project):
-        return {"ok": False, "warnings": [_warning("error", "PROJECT_NOT_FOUND", "Project not found")], "comparison": {}}
+        return {"ok": False, "warnings": [make_warning("error", "PROJECT_NOT_FOUND", "Project not found")], "comparison": {}}
     calendar_model = db.get_calendar(project_path, project.calendar_id)
     if calendar_model is None:
         return {
             "ok": False,
-            "warnings": [_warning("error", "PROJECT_CALENDAR_NOT_FOUND", "Project calendar not found")],
+            "warnings": [make_warning("error", "PROJECT_CALENDAR_NOT_FOUND", "Project calendar not found")],
             "comparison": {},
         }
 
     before_cpm = _run_cpm_with_dates(activities, relationships, project, calendar_model)
-    before_diagnostics = _schedule_diagnostics(activities, relationships, before_cpm)
-    warnings = _diagnostic_warnings(before_diagnostics, "before")
-    warnings.extend(_validate_patch(activities, relationships, patch))
-    if _has_error(warnings):
+    before_diagnostics = schedule_diagnostics(activities, relationships, before_cpm)
+    warnings = diagnostic_warnings(before_diagnostics, "before")
+    warnings.extend(validate_patch(activities, relationships, patch))
+    if has_error(warnings):
         return _result(
             ok=False,
             project=project,
@@ -93,16 +94,16 @@ def calibrate_project_completion(project_path: str | Path, patch: CalibrationPat
     correction_records.extend(dependency_records)
 
     after_cpm = _run_cpm_with_dates(calibrated_activities, calibrated_relationships, project, calendar_model)
-    after_diagnostics = _schedule_diagnostics(calibrated_activities, calibrated_relationships, after_cpm)
+    after_diagnostics = schedule_diagnostics(calibrated_activities, calibrated_relationships, after_cpm)
     if after_cpm.cycles_detected:
         warnings.append(
-            _warning(
+            make_warning(
                 "error",
                 "DEPENDENCY_CYCLE",
                 f"Calibration creates dependency cycle: {after_cpm.cycles_detected}",
             )
         )
-    warnings.extend(_diagnostic_warnings(after_diagnostics, "after"))
+    warnings.extend(diagnostic_warnings(after_diagnostics, "after"))
 
     result = _result(
         ok=not bool(after_cpm.cycles_detected),
@@ -120,168 +121,6 @@ def calibrate_project_completion(project_path: str | Path, patch: CalibrationPat
     )
     result["correction_records"] = _with_applied_order(correction_records)
     return result
-
-
-def _validate_patch(
-    activities: list[Activity],
-    relationships: list[Relationship],
-    patch: CalibrationPatch,
-) -> list[dict[str, object]]:
-    activity_ids = {activity.activity_id for activity in activities}
-    relationship_keys = {(rel.pred_id, rel.succ_id): rel for rel in relationships}
-    warnings: list[dict[str, object]] = []
-    dependency_seen: dict[tuple[str, str], int] = {}
-    duration_seen: dict[str, int] = {}
-    lag_seen: dict[tuple[str, str], int] = {}
-    for applied_order, dependency_override in enumerate(patch.dependency_overrides or [], start=1):
-        key = (dependency_override.predecessor_id, dependency_override.successor_id)
-        if dependency_override.predecessor_id not in activity_ids:
-            warnings.append(
-                _warning(
-                    "error",
-                    "UNKNOWN_TASK_ID",
-                    f"Unknown predecessor_id: {dependency_override.predecessor_id}",
-                    task_id=dependency_override.predecessor_id,
-                    applied_order=applied_order,
-                )
-            )
-        if dependency_override.successor_id not in activity_ids:
-            warnings.append(
-                _warning(
-                    "error",
-                    "UNKNOWN_TASK_ID",
-                    f"Unknown successor_id: {dependency_override.successor_id}",
-                    task_id=dependency_override.successor_id,
-                    applied_order=applied_order,
-                )
-            )
-        if key in dependency_seen:
-            warnings.append(
-                _warning(
-                    "error",
-                    "DUPLICATE_DEPENDENCY_OVERRIDE",
-                    f"Duplicate dependency override: {key[0]}->{key[1]}",
-                    task_id=dependency_override.successor_id,
-                    applied_order=applied_order,
-                )
-            )
-        dependency_seen[key] = applied_order
-        if dependency_override.dependency_type not in {"FS", "SS", "FF"}:
-            warnings.append(
-                _warning(
-                    "error",
-                    "UNSUPPORTED_DEPENDENCY_TYPE",
-                    f"Unsupported dependency_type for v0.1: {dependency_override.dependency_type}",
-                    task_id=dependency_override.successor_id,
-                    applied_order=applied_order,
-                )
-            )
-        if abs(dependency_override.lag_days) > MAX_ABS_LAG_DAYS:
-            warnings.append(
-                _warning(
-                    "error",
-                    "INVALID_LAG",
-                    f"Invalid lag_days for {key[0]}->{key[1]}: {dependency_override.lag_days}",
-                    task_id=dependency_override.successor_id,
-                    applied_order=applied_order,
-                )
-            )
-    for applied_order, duration_override in enumerate(patch.duration_overrides or [], start=1):
-        if duration_override.task_id not in activity_ids:
-            warnings.append(
-                _warning(
-                    "error",
-                    "UNKNOWN_TASK_ID",
-                    f"Unknown task_id: {duration_override.task_id}",
-                    task_id=duration_override.task_id,
-                    applied_order=applied_order,
-                )
-            )
-        if duration_override.task_id in duration_seen:
-            warnings.append(
-                _warning(
-                    "error",
-                    "CONFLICTING_DURATION_OVERRIDE",
-                    f"Multiple duration overrides for task_id: {duration_override.task_id}",
-                    task_id=duration_override.task_id,
-                    applied_order=applied_order,
-                )
-            )
-        duration_seen[duration_override.task_id] = applied_order
-        if duration_override.duration_days <= 0:
-            warnings.append(
-                _warning(
-                    "error",
-                    "INVALID_DURATION",
-                    f"Invalid duration_days for {duration_override.task_id}: {duration_override.duration_days}",
-                    task_id=duration_override.task_id,
-                    applied_order=applied_order,
-                )
-            )
-    for applied_order, lag_override in enumerate(patch.lag_overrides or [], start=1):
-        key = (lag_override.predecessor_id, lag_override.successor_id)
-        if lag_override.predecessor_id not in activity_ids:
-            warnings.append(
-                _warning(
-                    "error",
-                    "UNKNOWN_TASK_ID",
-                    f"Unknown predecessor_id: {lag_override.predecessor_id}",
-                    task_id=lag_override.predecessor_id,
-                    applied_order=applied_order,
-                )
-            )
-        if lag_override.successor_id not in activity_ids:
-            warnings.append(
-                _warning(
-                    "error",
-                    "UNKNOWN_TASK_ID",
-                    f"Unknown successor_id: {lag_override.successor_id}",
-                    task_id=lag_override.successor_id,
-                    applied_order=applied_order,
-                )
-            )
-        if key in lag_seen:
-            warnings.append(
-                _warning(
-                    "error",
-                    "CONFLICTING_LAG_OVERRIDE",
-                    f"Multiple lag overrides for relationship: {key[0]}->{key[1]}",
-                    task_id=lag_override.successor_id,
-                    applied_order=applied_order,
-                )
-            )
-        lag_seen[key] = applied_order
-        if key not in relationship_keys:
-            warnings.append(
-                _warning(
-                    "error",
-                    "UNKNOWN_RELATIONSHIP",
-                    f"Unknown relationship for lag override: {key[0]}->{key[1]}",
-                    task_id=lag_override.successor_id,
-                    applied_order=applied_order,
-                )
-            )
-        if key in dependency_seen:
-            warnings.append(
-                _warning(
-                    "warning",
-                    "CONFLICTING_LAG_OVERRIDE",
-                    f"Lag override duplicates dependency override lag field for relationship: {key[0]}->{key[1]}",
-                    task_id=lag_override.successor_id,
-                    applied_order=applied_order,
-                )
-            )
-        if abs(lag_override.lag_days) > MAX_ABS_LAG_DAYS:
-            warnings.append(
-                _warning(
-                    "error",
-                    "INVALID_LAG",
-                    f"Invalid lag_days for {key[0]}->{key[1]}: {lag_override.lag_days}",
-                    task_id=lag_override.successor_id,
-                    applied_order=applied_order,
-                )
-            )
-    return warnings
 
 
 def _apply_duration_overrides(
@@ -470,174 +309,9 @@ def _comparison(
         "missing_cost_count_after": sum(1 for activity in calibrated_activities if activity.cost == 0),
         "cycles_detected_before": before_cpm.cycles_detected or [],
         "cycles_detected_after": after_cpm.cycles_detected or [],
-        "field_uat_status": _field_uat_status(after_diagnostics, warnings),
+        "field_uat_status": field_uat_status(after_diagnostics, warnings),
         "warnings": warnings,
     }
-
-
-def _schedule_diagnostics(
-    activities: list[Activity],
-    relationships: list[Relationship],
-    cpm_result: CpmResult,
-) -> dict[str, object]:
-    task_count = len(activities)
-    dependency_count = len(relationships)
-    predecessor_ids = {relationship.succ_id for relationship in relationships}
-    successor_ids = {relationship.pred_id for relationship in relationships}
-    ids = [activity.activity_id for activity in activities]
-    duplicate_count = len(ids) - len(set(ids))
-    missing_cost_count = sum(1 for activity in activities if activity.cost == 0)
-    zero_or_negative_duration_count = sum(1 for activity in activities if activity.duration <= 0)
-    isolated_task_count = sum(
-        1
-        for activity in activities
-        if activity.activity_id not in predecessor_ids and activity.activity_id not in successor_ids
-    )
-    return {
-        "task_count": task_count,
-        "dependency_count": dependency_count,
-        "tasks_without_predecessor_count": sum(1 for activity in activities if activity.activity_id not in predecessor_ids),
-        "tasks_without_successor_count": sum(1 for activity in activities if activity.activity_id not in successor_ids),
-        "isolated_task_count": isolated_task_count,
-        "missing_duration_count": 0,
-        "zero_or_negative_duration_count": zero_or_negative_duration_count,
-        "missing_cost_count": missing_cost_count,
-        "duplicate_task_id_count": duplicate_count,
-        "cycle_detected": bool(cpm_result.cycles_detected),
-        "disconnected_component_count": _disconnected_component_count(activities, relationships),
-        "relationship_coverage_ratio": _ratio(dependency_count, task_count),
-        "cost_coverage_ratio": _ratio(task_count - missing_cost_count, task_count),
-        "warnings": [],
-    }
-
-
-def _diagnostic_warnings(diagnostics: dict[str, object], phase: str) -> list[dict[str, object]]:
-    warnings: list[dict[str, object]] = []
-    relationship_coverage = _float_diagnostic(diagnostics, "relationship_coverage_ratio")
-    cost_coverage = _float_diagnostic(diagnostics, "cost_coverage_ratio")
-    if relationship_coverage < RELATIONSHIP_COVERAGE_THRESHOLD:
-        warnings.append(
-            _warning(
-                "warning",
-                "LOW_RELATIONSHIP_COVERAGE",
-                "Relationship coverage is below recommended threshold.",
-                phase=phase,
-            )
-        )
-    if cost_coverage < COST_COVERAGE_THRESHOLD:
-        warnings.append(
-            _warning(
-                "warning",
-                "LOW_COST_COVERAGE",
-                "Cost coverage is below recommended threshold.",
-                phase=phase,
-            )
-        )
-    if diagnostics["zero_or_negative_duration_count"]:
-        warnings.append(
-            _warning(
-                "warning",
-                "INVALID_DURATION",
-                "Schedule contains zero or negative duration activities.",
-                phase=phase,
-            )
-        )
-    if diagnostics["duplicate_task_id_count"]:
-        warnings.append(
-            _warning(
-                "error",
-                "DUPLICATE_TASK_ID",
-                "Schedule contains duplicate task IDs.",
-                phase=phase,
-            )
-        )
-    if diagnostics["cycle_detected"]:
-        warnings.append(
-            _warning(
-                "error",
-                "DEPENDENCY_CYCLE",
-                "Schedule contains a dependency cycle.",
-                phase=phase,
-            )
-        )
-    return warnings
-
-
-def _field_uat_status(after_diagnostics: dict[str, object], warnings: list[dict[str, object]]) -> str:
-    if after_diagnostics["cycle_detected"] or any(warning["code"] == "DEPENDENCY_CYCLE" for warning in warnings):
-        return "blocked_by_cycle"
-    if _has_error(warnings):
-        return "blocked_by_invalid_patch"
-    if _float_diagnostic(after_diagnostics, "relationship_coverage_ratio") < RELATIONSHIP_COVERAGE_THRESHOLD:
-        return "needs_relationship_correction"
-    if _float_diagnostic(after_diagnostics, "cost_coverage_ratio") < COST_COVERAGE_THRESHOLD:
-        return "needs_cost_correction"
-    return "ready_for_review"
-
-
-def _warning(
-    severity: str,
-    code: str,
-    message: str,
-    *,
-    task_id: str | None = None,
-    applied_order: int | None = None,
-    phase: str | None = None,
-) -> dict[str, object]:
-    record: dict[str, object] = {
-        "severity": severity,
-        "code": code,
-        "message": message,
-    }
-    if task_id is not None:
-        record["task_id"] = task_id
-    if applied_order is not None:
-        record["applied_order"] = applied_order
-    if phase is not None:
-        record["phase"] = phase
-    return record
-
-
-def _has_error(warnings: list[dict[str, object]]) -> bool:
-    return any(warning["severity"] == "error" for warning in warnings)
-
-
-def _ratio(numerator: int, denominator: int) -> float:
-    if denominator == 0:
-        return 1.0
-    return round(numerator / denominator, 4)
-
-
-def _float_diagnostic(diagnostics: dict[str, object], key: str) -> float:
-    value = diagnostics[key]
-    if isinstance(value, int | float):
-        return float(value)
-    return float(str(value))
-
-
-def _disconnected_component_count(activities: list[Activity], relationships: list[Relationship]) -> int:
-    activity_ids = {activity.activity_id for activity in activities}
-    if not activity_ids:
-        return 0
-    adjacency = {activity_id: set[str]() for activity_id in activity_ids}
-    for relationship in relationships:
-        if relationship.pred_id in adjacency and relationship.succ_id in adjacency:
-            adjacency[relationship.pred_id].add(relationship.succ_id)
-            adjacency[relationship.succ_id].add(relationship.pred_id)
-    seen: set[str] = set()
-    count = 0
-    for activity_id in activity_ids:
-        if activity_id in seen:
-            continue
-        count += 1
-        stack = [activity_id]
-        while stack:
-            current = stack.pop()
-            if current in seen:
-                continue
-            seen.add(current)
-            stack.extend(adjacency[current] - seen)
-    return count
 
 
 def _delta_days(finish: date | None, target: date | None) -> int | None:

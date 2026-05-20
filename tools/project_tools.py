@@ -14,6 +14,11 @@ DEFAULT_PROJECTS_DIR = Path.home() / ".smart-scheduler" / "projects"
 
 
 def list_projects(projects_dir: str | Path | None = None) -> dict[str, object]:
+    """List ``.scheduler`` projects under ``projects_dir`` (default ~/.smart-scheduler/projects).
+
+    Returns ``{"ok": True, "projects": [{"project_path", "name", "start_date"}, ...]}``.
+    Unreadable projects are silently skipped.
+    """
     root = _projects_dir(projects_dir)
     root.mkdir(parents=True, exist_ok=True)
     projects = []
@@ -32,13 +37,30 @@ def list_projects(projects_dir: str | Path | None = None) -> dict[str, object]:
 
 
 def load_project(project_path: str | Path) -> dict[str, object]:
+    """Load project metadata and summary counts from a ``.scheduler`` file.
+
+    On success returns ``{"ok": True, "project": {...}, "summary": {activity_count, ...}}``.
+    On failure returns ``{"ok": False, "error_code": ..., "error_message": ...}``.
+    """
     path = Path(project_path)
     summary = db.load_project_summary(path)
     project = summary["project"]
     if project is None:
-        return {"ok": False, "error": "Project not found", "project_path": str(path)}
+        return {
+            "ok": False,
+            "error_code": "PROJECT_NOT_FOUND",
+            "error_message": "Project not found",
+            "error": "Project not found",
+            "project_path": str(path),
+        }
     if not isinstance(project, Project):
-        return {"ok": False, "error": "Invalid project summary", "project_path": str(path)}
+        return {
+            "ok": False,
+            "error_code": "INVALID_PROJECT_SUMMARY",
+            "error_message": "Invalid project summary",
+            "error": "Invalid project summary",
+            "project_path": str(path),
+        }
     return {
         "ok": True,
         "project_path": str(path),
@@ -59,6 +81,14 @@ def create_project(
     description: str = "",
     projects_dir: str | Path | None = None,
 ) -> dict[str, object]:
+    """Create a new ``.scheduler`` SQLite project with the given calendar.
+
+    Args:
+        name: Display name; also slugified into the filename.
+        start_date: ISO date (``YYYY-MM-DD``) used as project workday 0.
+        calendar: ``{"calendar_id", "name", "weekmask", "holidays"}``;
+            ``weekmask`` is 7 chars of ``1``/``0`` (Mon→Sun, e.g. ``1111100`` = 5-day).
+    """
     root = _projects_dir(projects_dir)
     root.mkdir(parents=True, exist_ok=True)
     project_id = str(uuid.uuid4())

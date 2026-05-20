@@ -12,15 +12,33 @@ class KoreanCalendar:
     def __init__(self, calendar: Calendar) -> None:
         self.calendar = calendar
         self.user_holidays = {date.fromisoformat(value) for value in calendar.holidays}
+        # Cache KR holidays per year so we don't rebuild the lookup on every call.
+        self._kr_holidays_cache: dict[int, object] = {}
+        # Memoize (project_start, offset) -> date so repeated lookups across
+        # activities (each calls 4x) don't re-scan from the project start.
+        self._workday_cache: dict[tuple[date, int], date] = {}
 
     def workday_to_date(self, project_start: date, offset: int) -> date:
         if offset < 0:
             raise ValueError("Workday offset cannot be negative")
+        cache_key = (project_start, offset)
+        cached = self._workday_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        # Resume from the nearest cached lower offset to avoid rescanning.
+        start_offset = 0
         current = project_start
-        remaining = offset
+        for cached_offset in range(offset - 1, -1, -1):
+            prev = self._workday_cache.get((project_start, cached_offset))
+            if prev is not None:
+                start_offset = cached_offset + 1
+                current = prev + timedelta(days=1)
+                break
+        remaining = offset - start_offset
         while True:
             if self.is_working_day(current):
                 if remaining == 0:
+                    self._workday_cache[cache_key] = current
                     return current
                 remaining -= 1
             current += timedelta(days=1)
@@ -41,7 +59,14 @@ class KoreanCalendar:
             return False
         if value in self.user_holidays:
             return False
-        return value not in holidays.country_holidays("KR", years=[value.year])
+        return value not in self._kr_holidays_for(value.year)
+
+    def _kr_holidays_for(self, year: int) -> object:
+        cached = self._kr_holidays_cache.get(year)
+        if cached is None:
+            cached = holidays.country_holidays("KR", years=[year])
+            self._kr_holidays_cache[year] = cached
+        return cached
 
 
 def map_activity_dates(

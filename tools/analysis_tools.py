@@ -7,6 +7,11 @@ from core.cpm import run_cpm_for_project
 
 
 def calculate_cpm(project_path: str | Path) -> dict[str, object]:
+    """Run CPM on the project and persist computed dates back to activities.
+
+    Returns ``ok=False`` only when dependency cycles are detected
+    (``cycles_detected`` lists them); other failure modes raise.
+    """
     result = run_cpm_for_project(project_path)
     return {
         "ok": not bool(result.cycles_detected),
@@ -20,6 +25,10 @@ def calculate_cpm(project_path: str | Path) -> dict[str, object]:
 
 
 def get_critical_path(project_path: str | Path) -> dict[str, object]:
+    """Return activities flagged ``is_critical`` ordered by ES workday then code.
+
+    Assumes ``calculate_cpm`` has been run previously; otherwise the list is empty.
+    """
     activities = [
         activity
         for activity in db.list_activities(project_path)

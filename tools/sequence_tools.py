@@ -20,6 +20,13 @@ def apply_sequences(
     wbs_id: str,
     duration_overrides: dict[str, int] | None = None,
 ) -> dict[str, object]:
+    """Generate activities + FS chain for each zone from a MEP sequence template.
+
+    Reads ``mep/sequences.json`` keyed by ``(discipline, sequence_key)``.
+    For each zone, expands ``steps`` into activities with code
+    ``{SEQUENCE_KEY}-{ZONE}-{NN}`` and chains them with FS(0) relationships.
+    ``duration_overrides`` maps a step ``key`` → days (replaces template default).
+    """
     sequence = _load_sequence(discipline, sequence_key)
     duration_overrides = duration_overrides or {}
     added_activities = 0

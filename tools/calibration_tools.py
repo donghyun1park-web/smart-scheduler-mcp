@@ -21,6 +21,20 @@ def calibrate_completion_date(
     lag_overrides: list[dict[str, object]] | None = None,
     notes: str | None = None,
 ) -> dict[str, object]:
+    """Apply a calibration patch and return before/after CPM comparison.
+
+    Each override is a plain dict (deserialised from JSON / MCP arguments):
+
+    - ``dependency_overrides``: ``{predecessor_id, successor_id, dependency_type=FS, lag_days=0, reason?, source?}``
+    - ``duration_overrides``: ``{task_id, duration_days, reason?, source?}``
+    - ``lag_overrides``: ``{predecessor_id, successor_id, lag_days, reason?, source?}``
+
+    ``target_finish_date`` is ISO date (``YYYY-MM-DD``); used only for the
+    ``delta_days_before/after`` comparison fields.
+
+    Invalid patches do not raise — they return ``ok=False`` with structured
+    ``warnings`` (severity, code, message, task_id, applied_order).
+    """
     patch = CalibrationPatch(
         target_finish_date=date.fromisoformat(target_finish_date) if target_finish_date else None,
         dependency_overrides=[

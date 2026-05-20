@@ -3,12 +3,19 @@ from __future__ import annotations
 import json
 import uuid
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from openpyxl import load_workbook
 
 from core import db
 from core.models import Activity, Relationship, WBS
+from core.validation import (
+    ValidationError,
+    optional_float,
+    optional_text,
+    require_int,
+    require_text,
+)
 
 
 DEFAULT_PRESETS_DIR = Path("presets")
@@ -46,6 +53,19 @@ def import_excel(
     presets_dir: str | Path = DEFAULT_PRESETS_DIR,
     column_mapping: dict[str, str] | None = None,
 ) -> dict[str, object]:
+    """Import activities (and predecessor relationships) from an Excel workbook.
+
+    If neither ``preset_name`` nor ``column_mapping`` is supplied, the importer
+    falls back to the Korean timeline layout (header row 5, data from row 9).
+
+    The mapping must cover ``code``, ``name``, ``duration``, and one of
+    ``wbs_code``/``wbs_id``. Optional keys: ``discipline``, ``zone``, ``cost``,
+    ``predecessors`` (comma-separated activity codes resolved after all rows
+    are read, so forward references are allowed).
+
+    Returns row-level ``failed_rows`` instead of raising — callers can surface
+    each reason to the user. ``ok`` is True only when every row imported.
+    """
     if column_mapping is None and preset_name is None:
         return _import_korean_timeline_schedule(project_path, file_path)
 
@@ -66,6 +86,8 @@ def import_excel(
         if missing_headers:
             return {
                 "ok": False,
+                "error_code": "MISSING_HEADERS",
+                "error_message": f"Missing mapped headers: {missing_headers}",
                 "warnings": [f"Missing mapped headers: {missing_headers}"],
                 "failed_rows": [],
                 "added_activities": 0,
@@ -76,30 +98,38 @@ def import_excel(
         for row_number, row in enumerate(sheet.iter_rows(min_row=header_row + 1, values_only=True), start=header_row + 1):
             try:
                 values = _row_values(row, header_index, mapping)
-                code = str(values["code"]).strip()
-                wbs_id = _ensure_wbs(project_path, wbs_by_code, str(values.get("wbs_code") or values.get("wbs_id") or "ROOT"))
-                duration = int(cast(str | int | float, values["duration"]))
-                cost = float(cast(str | int | float, values.get("cost") or 0))
+                code = require_text(values.get("code"), "code")
+                if code in code_to_activity_id:
+                    raise ValidationError(f"Duplicate activity code: {code}")
+                wbs_code = optional_text(
+                    values.get("wbs_code") or values.get("wbs_id"),
+                    default="ROOT",
+                )
+                wbs_id = _ensure_wbs(project_path, wbs_by_code, wbs_code)
+                duration = require_int(values.get("duration"), "duration", minimum=0)
+                cost = optional_float(values.get("cost"), "cost", default=0.0)
                 activity_id = str(uuid.uuid4())
                 db.add_activity(
                     project_path,
                     Activity(
                         activity_id=activity_id,
                         code=code,
-                        name=str(values["name"]).strip(),
+                        name=require_text(values.get("name"), "name"),
                         wbs_id=wbs_id,
-                        discipline=str(values.get("discipline") or "공통").strip(),
-                        zone=str(values.get("zone") or "").strip(),
+                        discipline=optional_text(values.get("discipline"), default="공통"),
+                        zone=optional_text(values.get("zone")),
                         duration=duration,
                         cost=cost,
                     ),
                 )
                 code_to_activity_id[code] = activity_id
                 added_activities += 1
-                predecessors = str(values.get("predecessors") or "").strip()
+                predecessors = optional_text(values.get("predecessors"))
                 if predecessors:
                     pending_predecessors.append((row_number, activity_id, predecessors))
-            except Exception as exc:  # noqa: BLE001 - row-level import errors must be reported.
+            except ValidationError as exc:
+                failed_rows.append({"row": row_number, "reason": str(exc)})
+            except Exception as exc:  # noqa: BLE001 - unexpected row-level errors must be reported.
                 failed_rows.append({"row": row_number, "reason": str(exc)})
 
         for row_number, succ_id, predecessors in pending_predecessors:

@@ -14,6 +14,13 @@ def run_field_uat_workflow(
     output_dir: str | Path | None = None,
     generate_reports: bool = True,
 ) -> dict[str, object]:
+    """Run the end-to-end field UAT workflow: import → calibrate → CPM → report.
+
+    Either ``excel_path`` (raw import) or ``imported_schedule`` (preloaded)
+    must be supplied. ``calibration_patch`` matches
+    :func:`tools.calibration_tools.calibrate_completion_date`'s shape.
+    Output sheets land under ``output_dir`` when ``generate_reports=True``.
+    """
     return run_core_field_uat_workflow(
         FieldUATWorkflowInput(
             project_id=project_id,
