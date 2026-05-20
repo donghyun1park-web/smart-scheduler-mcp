@@ -56,26 +56,6 @@ def run_field_uat_workflow(request: FieldUATWorkflowInput) -> dict[str, object]:
     before_cpm = cast(dict[str, object], calibration_result["before_cpm"])
     correction_records = cast(list[dict[str, object]], calibration_result.get("correction_records") or [])
 
-    artifacts = _write_summary_artifacts(
-        output_dir=output_dir,
-        result={
-            "project_id": request.project_id,
-            "field_uat_status": comparison["field_uat_status"],
-            "input_summary": _input_summary(source_type, before_diagnostics, import_result),
-            "diagnostics_summary": _diagnostics_summary(before_diagnostics),
-            "cpm_summary": _cpm_summary(before_cpm),
-            "calibration_summary": _calibration_summary(comparison, correction_records, request),
-            "recommended_next_actions": _recommended_next_actions(comparison, before_diagnostics, calibration_result),
-            "artifacts": {},
-            "warnings": calibration_result["warnings"],
-        },
-    )
-
-    if request.generate_reports:
-        report = generate_report(project_path, output_dir / f"{request.project_id}_schedule_report.xlsx")
-        if report["ok"]:
-            artifacts["excel_report"] = str(report["output_path"])
-
     result = {
         "project_id": request.project_id,
         "field_uat_status": comparison["field_uat_status"],
@@ -83,10 +63,22 @@ def run_field_uat_workflow(request: FieldUATWorkflowInput) -> dict[str, object]:
         "diagnostics_summary": _diagnostics_summary(before_diagnostics),
         "cpm_summary": _cpm_summary(before_cpm),
         "calibration_summary": _calibration_summary(comparison, correction_records, request),
+        "correction_records": correction_records,
         "recommended_next_actions": _recommended_next_actions(comparison, before_diagnostics, calibration_result),
-        "artifacts": artifacts,
+        "artifacts": {},
         "warnings": calibration_result["warnings"],
     }
+    artifacts = _write_summary_artifacts(output_dir=output_dir, result=result)
+
+    if request.generate_reports:
+        report_path = output_dir / f"{request.project_id}_schedule_report.xlsx"
+        artifacts["excel_report"] = str(report_path)
+        result["artifacts"] = dict(artifacts)
+        report = generate_report(project_path, report_path, field_uat_result=result)
+        if report["ok"]:
+            artifacts["excel_report"] = str(report["output_path"])
+
+    result["artifacts"] = artifacts
     _rewrite_summary_artifacts(output_dir, result)
     return result
 
@@ -213,13 +205,19 @@ def _input_summary(
 
 def _diagnostics_summary(diagnostics: dict[str, object]) -> dict[str, object]:
     keys = [
-        "relationship_coverage_ratio",
-        "cost_coverage_ratio",
-        "cycle_detected",
-        "missing_cost_count",
-        "isolated_task_count",
+        "task_count",
+        "dependency_count",
         "tasks_without_predecessor_count",
         "tasks_without_successor_count",
+        "isolated_task_count",
+        "missing_duration_count",
+        "zero_or_negative_duration_count",
+        "missing_cost_count",
+        "duplicate_task_id_count",
+        "cycle_detected",
+        "disconnected_component_count",
+        "relationship_coverage_ratio",
+        "cost_coverage_ratio",
     ]
     return {key: diagnostics[key] for key in keys}
 
@@ -240,9 +238,14 @@ def _calibration_summary(
         return None
     return {
         "target_finish_date": comparison["target_finish_date"],
+        "before_finish_date": comparison["before_finish_date"],
         "after_finish_date": comparison["after_finish_date"],
         "delta_days_before": comparison["delta_days_before"],
         "delta_days_after": comparison["delta_days_after"],
+        "critical_path_before_count": len(cast(list[object], comparison["critical_path_before"])),
+        "critical_path_after_count": len(cast(list[object], comparison["critical_path_after"])),
+        "dependency_count_before": comparison["dependency_count_before"],
+        "dependency_count_after": comparison["dependency_count_after"],
         "correction_count": len(correction_records),
     }
 

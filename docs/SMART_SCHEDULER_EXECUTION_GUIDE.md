@@ -297,6 +297,24 @@ The workflow does not automatically modify durations or dependencies to match
 the target finish date. The target finish date remains a validation reference,
 not an automatic scheduling constraint.
 
+### Excel Report Summary Sheets
+
+When `generate_reports` is enabled, the Field UAT workflow adds the following
+review sheets to the Excel report:
+
+- Field UAT Summary
+- Diagnostics Summary
+- Calibration Summary
+- Calibration Corrections
+- Calibration Warnings
+- Recommended Actions
+
+These sheets summarize diagnostics, CPM results, calibration deltas, correction
+records, warnings, and recommended next actions.
+
+The target finish date remains a validation reference, not an automatic
+scheduling constraint.
+
 ## 10. Output Examples
 
 Typical outputs include:
