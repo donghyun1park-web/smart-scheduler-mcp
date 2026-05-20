@@ -22,6 +22,7 @@ natural-language what-if workflows.
 ## Documentation
 
 - [Release Notes v0.1.0](docs/RELEASE_NOTES_v0.1.0.md)
+- [Release Notes v0.1.1](docs/RELEASE_NOTES_v0.1.1.md)
 - [HongEundong Completion-Date Calibration](docs/HONGEUNDONG_COMPLETION_DATE_CALIBRATION.md)
 - [Execution Guide](docs/SMART_SCHEDULER_EXECUTION_GUIDE.md)
 
