@@ -26,8 +26,8 @@ def test_apply_sequence_creates_zone_activities_and_relationships(tmp_path):
     activities = db.list_activities(project["project_path"])
     relationships = db.list_relationships(project["project_path"])
     assert result["ok"] is True
-    assert result["added_activities"] == 8
-    assert result["added_relationships"] == 6
+    assert result["added_activities"] == 10
+    assert result["added_relationships"] == 8
     assert {activity.zone for activity in activities} == {"1F", "2F"}
     assert all(rel.rel_type == "FS" for rel in relationships)
 

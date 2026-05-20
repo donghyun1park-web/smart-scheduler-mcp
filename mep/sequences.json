@@ -4,12 +4,34 @@
     {
       "discipline": "위생",
       "key": "plumbing_sanitary_standard",
-      "name": "위생 표준",
+      "name": "위생 매립배관 표준",
       "steps": [
         {"key": "sleeve", "name": "슬리브 설치", "duration": 1},
         {"key": "rough_in", "name": "매립 배관", "duration": 3},
         {"key": "pressure_test", "name": "수압 시험", "duration": 1},
         {"key": "fixture", "name": "위생기구 설치", "duration": 2}
+      ]
+    },
+    {
+      "discipline": "위생",
+      "key": "plumbing_exposed_standard",
+      "name": "위생 노출배관 표준",
+      "steps": [
+        {"key": "support", "name": "행거/서포트 설치", "duration": 1},
+        {"key": "pipe_install", "name": "노출배관 설치", "duration": 4},
+        {"key": "pressure_test", "name": "수압 시험", "duration": 1},
+        {"key": "insulation", "name": "보온", "duration": 3}
+      ]
+    },
+    {
+      "discipline": "위생",
+      "key": "plumbing_fixture_standard",
+      "name": "위생기구 표준",
+      "steps": [
+        {"key": "marking", "name": "기구 위치 먹매김", "duration": 1},
+        {"key": "fixture_set", "name": "위생기구 설치", "duration": 2},
+        {"key": "trap_connect", "name": "트랩/배수 연결", "duration": 1},
+        {"key": "operation_test", "name": "통수/누수 시험", "duration": 1}
       ]
     },
     {
@@ -26,12 +48,24 @@
     {
       "discipline": "공조",
       "key": "hvac_duct_standard",
-      "name": "덕트 표준",
+      "name": "공조 덕트 표준",
       "steps": [
         {"key": "hanger", "name": "행거 설치", "duration": 1},
         {"key": "duct", "name": "덕트 설치", "duration": 3},
+        {"key": "leak_test", "name": "기밀 시험", "duration": 1},
         {"key": "insulation", "name": "보온", "duration": 2},
         {"key": "diffuser", "name": "디퓨저 설치", "duration": 1}
+      ]
+    },
+    {
+      "discipline": "공조",
+      "key": "hvac_pipe_standard",
+      "name": "공조 배관 표준",
+      "steps": [
+        {"key": "support", "name": "행거/서포트 설치", "duration": 1},
+        {"key": "pipe_install", "name": "냉온수 배관 설치", "duration": 4},
+        {"key": "pressure_test", "name": "수압 시험", "duration": 1},
+        {"key": "insulation", "name": "보온", "duration": 3}
       ]
     },
     {
@@ -43,6 +77,65 @@
         {"key": "set", "name": "장비 설치", "duration": 2},
         {"key": "connect", "name": "덕트 및 배관 연결", "duration": 2},
         {"key": "commission", "name": "시운전", "duration": 1}
+      ]
+    },
+    {
+      "discipline": "공조",
+      "key": "hvac_tab_standard",
+      "name": "TAB 시운전 표준",
+      "steps": [
+        {"key": "pre_check", "name": "예비 점검", "duration": 1},
+        {"key": "balancing", "name": "풍량/유량 조정(TAB)", "duration": 3},
+        {"key": "trial_run", "name": "통합 시운전", "duration": 2},
+        {"key": "report", "name": "성적서 작성", "duration": 1}
+      ]
+    },
+    {
+      "discipline": "소방",
+      "key": "fire_sprinkler_standard",
+      "name": "스프링클러 표준",
+      "steps": [
+        {"key": "hanger", "name": "행거 설치", "duration": 1},
+        {"key": "main_pipe", "name": "주배관 설치", "duration": 3},
+        {"key": "branch_pipe", "name": "가지배관/헤드 설치", "duration": 3},
+        {"key": "pressure_test", "name": "수압 시험", "duration": 1},
+        {"key": "inspection", "name": "소방 검사", "duration": 1}
+      ]
+    },
+    {
+      "discipline": "소방",
+      "key": "fire_hydrant_standard",
+      "name": "옥내소화전 표준",
+      "steps": [
+        {"key": "support", "name": "행거/서포트 설치", "duration": 1},
+        {"key": "pipe", "name": "소화전 배관 설치", "duration": 3},
+        {"key": "box_set", "name": "소화전함 설치", "duration": 1},
+        {"key": "pressure_test", "name": "수압/방수 시험", "duration": 1},
+        {"key": "inspection", "name": "소방 검사", "duration": 1}
+      ]
+    },
+    {
+      "discipline": "소방",
+      "key": "fire_smoke_control_standard",
+      "name": "제연설비 표준",
+      "steps": [
+        {"key": "hanger", "name": "행거 설치", "duration": 1},
+        {"key": "duct", "name": "제연 덕트 설치", "duration": 3},
+        {"key": "damper", "name": "제연 댐퍼 설치", "duration": 2},
+        {"key": "fan", "name": "제연 송풍기 설치", "duration": 1},
+        {"key": "test", "name": "연동 시험", "duration": 1}
+      ]
+    },
+    {
+      "discipline": "소방",
+      "key": "fire_detector_standard",
+      "name": "감지기/경보 표준",
+      "steps": [
+        {"key": "conduit", "name": "전선관 배관", "duration": 2},
+        {"key": "wiring", "name": "감지기 배선", "duration": 2},
+        {"key": "device", "name": "감지기/발신기 설치", "duration": 2},
+        {"key": "panel", "name": "수신기 연결", "duration": 1},
+        {"key": "interlock_test", "name": "연동/작동 시험", "duration": 1}
       ]
     }
   ]

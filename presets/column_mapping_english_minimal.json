@@ -1,0 +1,11 @@
+{
+  "name": "English Minimal",
+  "description": "Minimum required mapping for the sample fixture used in tests.",
+  "columns": {
+    "code": "Activity Code",
+    "name": "Activity Name",
+    "wbs_code": "WBS",
+    "duration": "Duration",
+    "predecessors": "Predecessors"
+  }
+}

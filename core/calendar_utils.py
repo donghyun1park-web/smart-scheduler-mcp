@@ -8,6 +8,42 @@ import holidays
 from core.models import ActivityCpmResult, Calendar
 
 
+RAINY_SEASON_START = (6, 25)
+RAINY_SEASON_END = (7, 25)
+WINTER_BREAK_START = (12, 20)
+WINTER_BREAK_END = (2, 10)  # of the next year
+
+
+def korean_rainy_season_dates(year: int) -> list[date]:
+    """Return Korean rainy-season dates (6/25–7/25) for ``year`` as ISO dates.
+
+    Used to pre-fill non-working days for outdoor MEP activities.
+    """
+    start = date(year, *RAINY_SEASON_START)
+    end = date(year, *RAINY_SEASON_END)
+    return _date_range(start, end)
+
+
+def korean_winter_break_dates(start_year: int) -> list[date]:
+    """Return Korean winter-break dates (12/20 of ``start_year`` → 2/10 next).
+
+    Applies primarily to outdoor concrete / piping work. Indoor activities
+    are usually unaffected; the user removes inapplicable days manually.
+    """
+    start = date(start_year, *WINTER_BREAK_START)
+    end = date(start_year + 1, *WINTER_BREAK_END)
+    return _date_range(start, end)
+
+
+def _date_range(start: date, end: date) -> list[date]:
+    days: list[date] = []
+    current = start
+    while current <= end:
+        days.append(current)
+        current += timedelta(days=1)
+    return days
+
+
 class KoreanCalendar:
     def __init__(self, calendar: Calendar) -> None:
         self.calendar = calendar
