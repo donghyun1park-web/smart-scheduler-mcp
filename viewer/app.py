@@ -4,10 +4,13 @@ from viewer.components import (
     activity_editor,
     analysis_panel,
     calendar_editor,
+    gantt_panel,
     import_panel,
     project_panel,
+    report_panel,
     relationship_editor,
     sequence_panel,
+    s_curve_panel,
     wbs_editor,
 )
 
@@ -23,7 +26,18 @@ def main() -> None:
         st.info("Create or load a project from the sidebar.")
         return
 
-    tabs = st.tabs(["WBS", "Activities", "Relationships", "Calendar", "Import", "Sequences", "CPM"])
+    tabs = st.tabs([
+        "WBS",
+        "Activities",
+        "Relationships",
+        "Calendar",
+        "Import",
+        "Sequences",
+        "CPM",
+        "Gantt",
+        "S-Curve",
+        "Report",
+    ])
     with tabs[0]:
         wbs_editor.render(project_path)
     with tabs[1]:
@@ -38,6 +52,12 @@ def main() -> None:
         sequence_panel.render(project_path)
     with tabs[6]:
         analysis_panel.render(project_path)
+    with tabs[7]:
+        gantt_panel.render(project_path)
+    with tabs[8]:
+        s_curve_panel.render(project_path)
+    with tabs[9]:
+        report_panel.render(project_path)
 
 
 if __name__ == "__main__":
