@@ -216,6 +216,7 @@ calculate_cpm
 get_critical_path
 generate_report
 calibrate_completion_date
+run_field_uat_workflow
 ```
 
 Use MCP Inspector or a connected MCP client to call the tools after starting:
@@ -223,6 +224,78 @@ Use MCP Inspector or a connected MCP client to call the tools after starting:
 ```powershell
 .\.venv\Scripts\python.exe server.py
 ```
+
+## Field UAT Workflow
+
+The field UAT workflow runs import or imported-schedule loading, diagnostics,
+CPM, optional calibration, and report summarization in one step.
+
+### MCP Tool
+
+```text
+run_field_uat_workflow
+```
+
+### Input Example
+
+```json
+{
+  "project_id": "hongeundong",
+  "imported_schedule": {
+    "project": {
+      "name": "Sanitized Field UAT",
+      "start_date": "2026-06-01"
+    },
+    "activities": [
+      {
+        "activity_id": "TASK-001",
+        "code": "TASK-001",
+        "name": "Imported timeline task",
+        "duration": 5
+      }
+    ]
+  },
+  "target_finish_date": "2026-12-31",
+  "calibration_patch": {
+    "dependency_overrides": []
+  },
+  "output_dir": "reports/hongeundong_uat",
+  "generate_reports": true
+}
+```
+
+### Output Example
+
+```json
+{
+  "project_id": "hongeundong",
+  "field_uat_status": "needs_relationship_correction",
+  "diagnostics_summary": {
+    "relationship_coverage_ratio": 0.0,
+    "cost_coverage_ratio": 0.0,
+    "cycle_detected": false,
+    "missing_cost_count": 1,
+    "isolated_task_count": 1
+  },
+  "cpm_summary": {
+    "before_finish_date": "2026-06-05",
+    "critical_path_task_count": 1
+  },
+  "recommended_next_actions": [
+    "Add dependencies for isolated tasks before trusting CPM finish date."
+  ],
+  "artifacts": {
+    "summary_json": "reports/hongeundong_uat/field_uat_summary.json",
+    "summary_markdown": "reports/hongeundong_uat/field_uat_summary.md"
+  }
+}
+```
+
+### Notes
+
+The workflow does not automatically modify durations or dependencies to match
+the target finish date. The target finish date remains a validation reference,
+not an automatic scheduling constraint.
 
 ## 10. Output Examples
 
