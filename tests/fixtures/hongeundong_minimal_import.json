@@ -1,0 +1,26 @@
+{
+  "project": {
+    "name": "HongEundong Minimal Calibration",
+    "start_date": "2026-06-01"
+  },
+  "activities": [
+    {
+      "activity_id": "a",
+      "code": "A",
+      "name": "Imported dominant activity",
+      "duration": 5
+    },
+    {
+      "activity_id": "b",
+      "code": "B",
+      "name": "Imported follow-up activity",
+      "duration": 2
+    },
+    {
+      "activity_id": "c",
+      "code": "C",
+      "name": "Imported final activity",
+      "duration": 2
+    }
+  ]
+}
