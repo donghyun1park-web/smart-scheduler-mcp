@@ -95,7 +95,7 @@ def calibrate_project_completion(project_path: str | Path, patch: CalibrationPat
         after_relationships=calibrated_relationships,
         warnings=warnings,
     )
-    result["correction_records"] = correction_records
+    result["correction_records"] = _with_applied_order(correction_records)
     return result
 
 
@@ -375,3 +375,12 @@ def _correction_record(
         "reason": reason,
         "source": source,
     }
+
+
+def _with_applied_order(records: list[dict[str, object]]) -> list[dict[str, object]]:
+    ordered_records: list[dict[str, object]] = []
+    for applied_order, record in enumerate(records, start=1):
+        ordered_record = dict(record)
+        ordered_record["applied_order"] = applied_order
+        ordered_records.append(ordered_record)
+    return ordered_records

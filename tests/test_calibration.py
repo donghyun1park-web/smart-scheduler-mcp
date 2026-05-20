@@ -39,6 +39,7 @@ def test_apply_calibration_adds_dependencies_without_mutating_imported_schedule(
     assert result["comparison"]["lag_override_count"] == 1
     assert before_relationships == after_relationships
     assert before_durations == after_durations
+    assert [record["applied_order"] for record in result["correction_records"]] == [1, 2]
 
 
 def test_completion_date_delta_is_reported_before_and_after_calibration(tmp_path):
