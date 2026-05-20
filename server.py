@@ -4,6 +4,7 @@ from mcp.server.fastmcp import FastMCP
 
 from tools.analysis_tools import calculate_cpm, get_critical_path
 from tools.calibration_tools import calibrate_completion_date
+from tools.field_uat_tools import run_field_uat_workflow
 from tools.import_tools import import_excel
 from tools.project_tools import create_project, list_projects, load_project
 from tools.report_tools import generate_report
@@ -21,6 +22,7 @@ def build_server() -> FastMCP:
     mcp.tool()(get_critical_path)
     mcp.tool()(generate_report)
     mcp.tool()(calibrate_completion_date)
+    mcp.tool()(run_field_uat_workflow)
     return mcp
 
 
