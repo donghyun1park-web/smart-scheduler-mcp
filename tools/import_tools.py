@@ -46,6 +46,9 @@ def import_excel(
     presets_dir: str | Path = DEFAULT_PRESETS_DIR,
     column_mapping: dict[str, str] | None = None,
 ) -> dict[str, object]:
+    if column_mapping is None and preset_name is None:
+        return _import_korean_timeline_schedule(project_path, file_path)
+
     mapping = column_mapping or _load_mapping(preset_name, presets_dir)
     _validate_required_mapping(mapping)
     warnings: list[str] = []
@@ -120,6 +123,100 @@ def import_excel(
         "added_activities": added_activities,
         "added_relationships": added_relationships,
     }
+
+
+def _import_korean_timeline_schedule(project_path: str | Path, file_path: str | Path) -> dict[str, object]:
+    warnings = [
+        "Detected Korean timeline schedule format; imported row-level activities with inferred durations.",
+        "Predecessor relationships are not inferred from timeline bars and must be reviewed manually.",
+    ]
+    failed_rows: list[dict[str, object]] = []
+    added_activities = 0
+    wbs_by_code = {wbs.code: wbs for wbs in db.list_wbs(project_path)}
+
+    workbook = load_workbook(file_path, read_only=True, data_only=True)
+    try:
+        sheet = workbook.active
+        if not _looks_like_korean_timeline(sheet):
+            raise ValueError("preset_name or column_mapping is required")
+
+        current_wbs_code = "ROOT"
+        for row_number, row in enumerate(sheet.iter_rows(min_row=9, values_only=True), start=9):
+            discipline_cell = _clean(row[0] if len(row) > 0 else None)
+            item_cell = _clean(row[1] if len(row) > 1 else None)
+            timeline_values = [_clean(value) for value in row[3:]]
+            timeline_markers = [(idx, value) for idx, value in enumerate(timeline_values) if value]
+
+            if discipline_cell and discipline_cell != "주요 Milestone":
+                current_wbs_code = discipline_cell
+                _ensure_wbs(project_path, wbs_by_code, current_wbs_code)
+
+            if not timeline_markers or discipline_cell == "주요 Milestone":
+                continue
+            try:
+                activity_id = str(uuid.uuid4())
+                code = f"G{row_number:03d}"
+                name = item_cell or timeline_markers[0][1]
+                duration = _infer_timeline_duration(timeline_markers)
+                db.add_activity(
+                    project_path,
+                    Activity(
+                        activity_id=activity_id,
+                        code=code,
+                        name=name,
+                        wbs_id=_ensure_wbs(project_path, wbs_by_code, current_wbs_code),
+                        discipline=_infer_discipline(current_wbs_code),
+                        zone="",
+                        duration=duration,
+                        cost=0.0,
+                    ),
+                )
+                added_activities += 1
+            except Exception as exc:  # noqa: BLE001 - row-level import errors must be reported.
+                failed_rows.append({"row": row_number, "reason": str(exc)})
+    finally:
+        workbook.close()
+
+    return {
+        "ok": len(failed_rows) == 0,
+        "warnings": warnings,
+        "failed_rows": failed_rows,
+        "added_activities": added_activities,
+        "added_relationships": 0,
+    }
+
+
+def _looks_like_korean_timeline(sheet: Any) -> bool:
+    first_headers = [sheet.cell(row=5, column=col).value for col in range(1, 4)]
+    return [_normalize_header(value) for value in first_headers] == ["공종", "항목", "구분"]
+
+
+def _clean(value: object) -> str:
+    return str(value).strip() if value is not None else ""
+
+
+def _normalize_header(value: object) -> str:
+    return _clean(value).replace(" ", "")
+
+
+def _infer_timeline_duration(markers: list[tuple[int, str]]) -> int:
+    first = markers[0][0]
+    last = markers[-1][0]
+    return max(1, (last - first + 1) * 10)
+
+
+def _infer_discipline(wbs_code: str) -> str:
+    if "위생" in wbs_code:
+        return "위생"
+    if "공조" in wbs_code or "기계" in wbs_code:
+        return "공조"
+    if "소방" in wbs_code:
+        return "소방"
+    if "전기" in wbs_code:
+        return "전기"
+    if "제어" in wbs_code:
+        return "자동제어"
+    return "공통"
 
 
 def _load_mapping(preset_name: str | None, presets_dir: str | Path) -> dict[str, str]:
