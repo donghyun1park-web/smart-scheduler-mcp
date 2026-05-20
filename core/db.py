@@ -184,6 +184,27 @@ def list_wbs(path: str | Path) -> list[WBS]:
     return [_wbs_from_row(row) for row in rows]
 
 
+def update_wbs(path: str | Path, wbs: WBS) -> WBS:
+    stamped = _stamp(wbs)
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            UPDATE wbs
+            SET parent_id = ?, code = ?, name = ?, sort_order = ?, updated_at = ?
+            WHERE wbs_id = ?
+            """,
+            (
+                stamped.parent_id,
+                stamped.code,
+                stamped.name,
+                stamped.sort_order,
+                stamped.updated_at,
+                stamped.wbs_id,
+            ),
+        )
+    return stamped
+
+
 def create_activity(path: str | Path, activity: Activity) -> Activity:
     stamped = _stamp(activity)
     with _connect(path) as conn:
@@ -209,6 +230,53 @@ def list_activities(path: str | Path) -> list[Activity]:
     with _connect(path) as conn:
         rows = conn.execute("SELECT * FROM activities ORDER BY code").fetchall()
     return [_activity_from_row(row) for row in rows]
+
+
+def update_activity(path: str | Path, activity: Activity) -> Activity:
+    stamped = _stamp(activity)
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            UPDATE activities
+            SET code = ?,
+                name = ?,
+                wbs_id = ?,
+                discipline = ?,
+                zone = ?,
+                duration = ?,
+                cost = ?,
+                es_workday = ?,
+                ef_workday = ?,
+                ls_workday = ?,
+                lf_workday = ?,
+                es_date = ?,
+                ef_date = ?,
+                total_float = ?,
+                is_critical = ?,
+                updated_at = ?
+            WHERE activity_id = ?
+            """,
+            (
+                stamped.code,
+                stamped.name,
+                stamped.wbs_id,
+                stamped.discipline,
+                stamped.zone,
+                stamped.duration,
+                stamped.cost,
+                stamped.es_workday,
+                stamped.ef_workday,
+                stamped.ls_workday,
+                stamped.lf_workday,
+                stamped.es_date.isoformat() if stamped.es_date else None,
+                stamped.ef_date.isoformat() if stamped.ef_date else None,
+                stamped.total_float,
+                int(stamped.is_critical),
+                stamped.updated_at,
+                stamped.activity_id,
+            ),
+        )
+    return stamped
 
 
 def create_relationship(path: str | Path, relationship: Relationship) -> Relationship:
@@ -240,6 +308,31 @@ def list_relationships(path: str | Path) -> list[Relationship]:
     with _connect(path) as conn:
         rows = conn.execute("SELECT * FROM relationships ORDER BY rel_id").fetchall()
     return [_relationship_from_row(row) for row in rows]
+
+
+def delete_relationship(path: str | Path, rel_id: str) -> None:
+    with _connect(path) as conn:
+        conn.execute("DELETE FROM relationships WHERE rel_id = ?", (rel_id,))
+
+
+def update_calendar(path: str | Path, calendar: Calendar) -> Calendar:
+    stamped = _stamp(calendar)
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            UPDATE calendars
+            SET name = ?, weekmask = ?, holidays = ?, updated_at = ?
+            WHERE calendar_id = ?
+            """,
+            (
+                stamped.name,
+                stamped.weekmask,
+                json.dumps(list(stamped.holidays), ensure_ascii=False),
+                stamped.updated_at,
+                stamped.calendar_id,
+            ),
+        )
+    return stamped
 
 
 def list_indexes(path: str | Path) -> set[str]:
