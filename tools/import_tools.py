@@ -128,7 +128,8 @@ def import_excel(
 def _import_korean_timeline_schedule(project_path: str | Path, file_path: str | Path) -> dict[str, object]:
     warnings = [
         "Detected Korean timeline schedule format; imported row-level activities with inferred durations.",
-        "Predecessor relationships are not inferred from timeline bars and must be reviewed manually.",
+        "No predecessor/relationship column was found. CPM can run, but Critical Path and completion date require manual relationship correction.",
+        "No cost column was found. S-Curve will be empty until costs are mapped or entered manually.",
     ]
     failed_rows: list[dict[str, object]] = []
     added_activities = 0
@@ -179,6 +180,7 @@ def _import_korean_timeline_schedule(project_path: str | Path, file_path: str | 
 
     return {
         "ok": len(failed_rows) == 0,
+        "import_mode": "korean_timeline",
         "warnings": warnings,
         "failed_rows": failed_rows,
         "added_activities": added_activities,

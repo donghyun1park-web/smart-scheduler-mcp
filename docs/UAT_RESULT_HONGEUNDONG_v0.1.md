@@ -17,10 +17,11 @@ Tested against `v0.1.0-rc1` plus the Korean timeline Excel import fix.
 | Metric | Value |
 | --- | --- |
 | Import status | Pass |
+| Import mode | `korean_timeline` |
 | Imported activities | 49 |
 | Imported relationships | 0 |
 | Failed rows | 0 |
-| Warnings | 2 |
+| Warnings | 3 |
 | CPM status | Pass |
 | CPM total duration | 1700 workdays |
 | CPM completion date | `2033-04-27` |
@@ -40,16 +41,34 @@ C:\tmp\smart_scheduler_uat\20260520_114857\reports\hongeundong-355-uat-650d5963_
 
 - The original workbook is a Korean 10-day timeline style schedule, not a
   normal `code/name/duration` table.
-- The importer now auto-detects headers such as `공 종`, `항 목`, `구 분` and
-  imports row-level activities without requiring a column mapping preset.
-- Relationships are not inferable from this workbook layout, so they are left
-  empty and must be reviewed manually.
-- Cost data is not present in the imported timeline rows, so S-Curve output has
-  no rows. This is an input-data limitation, not a chart failure.
-- CPM calculation succeeds technically, but the completion date is not field
-  reliable until relationships and schedule-position constraints are reviewed.
+- The importer now auto-detects spaced Korean headers such as `공 종`, `항 목`,
+  and `구 분`, then imports row-level activities without requiring a column
+  mapping preset.
+- Relationships are not inferable from this workbook layout, so
+  `relationships=0` is an input-data limitation rather than an importer crash.
+- Cost data is not present in the imported timeline rows, so `S-Curve rows=0`
+  is expected until costs are mapped or entered manually.
+- CPM calculation succeeds technically, but the Critical Path and completion
+  date are not field reliable until relationships and schedule-position
+  constraints are reviewed.
+
+## Import Warnings
+
+The Korean timeline import path should return warnings equivalent to:
+
+```json
+{
+  "import_mode": "korean_timeline",
+  "warnings": [
+    "Detected Korean timeline schedule format; imported row-level activities with inferred durations.",
+    "No predecessor/relationship column was found. CPM can run, but Critical Path and completion date require manual relationship correction.",
+    "No cost column was found. S-Curve will be empty until costs are mapped or entered manually."
+  ]
+}
+```
 
 ## Release Decision
 
 Do not tag `v0.1.0` solely from this run. The UAT uncovered one necessary import
-fix, and the next release candidate should include this fix before final UAT.
+fix. Cut `v0.1.0-rc2`, then run a second UAT that manually corrects
+relationships and costs before deciding on the final `v0.1.0` tag.

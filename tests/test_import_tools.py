@@ -74,10 +74,13 @@ def test_import_excel_detects_korean_timeline_schedule(tmp_path):
     activities = db.list_activities(project["project_path"])
     relationships = db.list_relationships(project["project_path"])
     assert result["ok"] is True
+    assert result["import_mode"] == "korean_timeline"
     assert result["added_activities"] == 2
     assert result["added_relationships"] == 0
     assert result["failed_rows"] == []
     assert "timeline schedule" in str(result["warnings"][0])
+    assert "relationship column" in str(result["warnings"][1])
+    assert "cost column" in str(result["warnings"][2])
     assert [activity.code for activity in activities] == ["G012", "G013"]
     assert [activity.name for activity in activities] == ["가설휀스설치", "C.I.P+차수공사"]
     assert [activity.duration for activity in activities] == [30, 10]
