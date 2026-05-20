@@ -73,7 +73,8 @@ def test_calibration_patch_rejects_unknown_task_id(tmp_path):
     )
 
     assert result["ok"] is False
-    assert "Unknown predecessor_id" in result["warnings"][0]
+    assert any(warning["code"] == "UNKNOWN_TASK_ID" for warning in result["warnings"])
+    assert any("Unknown predecessor_id" in warning["message"] for warning in result["warnings"])
 
 
 def test_calibration_detects_dependency_cycle(tmp_path):
@@ -91,7 +92,7 @@ def test_calibration_detects_dependency_cycle(tmp_path):
 
     assert result["ok"] is False
     assert result["comparison"]["cycles_detected_after"]
-    assert "cycle" in result["warnings"][0].lower()
+    assert any(warning["code"] == "DEPENDENCY_CYCLE" for warning in result["warnings"])
 
 
 def test_hongeundong_minimal_fixture_improves_finish_date_delta(tmp_path):
