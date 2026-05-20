@@ -19,6 +19,12 @@ Out of scope for v0.1: P6 XER, PDF output, AI recommendations, resource
 leveling, advanced multi-calendar constraints, PyInstaller packaging, and
 natural-language what-if workflows.
 
+## Documentation
+
+- [Release Notes v0.1.0](docs/RELEASE_NOTES_v0.1.0.md)
+- [HongEundong Completion-Date Calibration](docs/HONGEUNDONG_COMPLETION_DATE_CALIBRATION.md)
+- [Execution Guide](docs/SMART_SCHEDULER_EXECUTION_GUIDE.md)
+
 ## Environment Gate
 
 This project must be developed and verified with Python `>=3.11,<3.13`.
