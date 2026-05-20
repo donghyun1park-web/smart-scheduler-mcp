@@ -185,6 +185,23 @@ Output excerpt:
 The workflow never silently overwrites the imported schedule. Calibration is
 represented as an explicit user patch and comparison report.
 
+v0.1.2 extends this output with field UAT diagnostics:
+
+```text
+diagnostics.before
+diagnostics.after
+comparison.relationship_coverage_before
+comparison.relationship_coverage_after
+comparison.cost_coverage_before
+comparison.cost_coverage_after
+comparison.field_uat_status
+warnings[].severity
+warnings[].code
+```
+
+See [Calibration Diagnostics](CALIBRATION_DIAGNOSTICS.md) for warning codes,
+coverage calculations, and field UAT status interpretation.
+
 ## 9. MCP Tool Usage
 
 The server registers these tools:

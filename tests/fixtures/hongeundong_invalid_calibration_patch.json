@@ -1,0 +1,28 @@
+{
+  "target_finish_date": "2026-06-30",
+  "dependency_overrides": [
+    {
+      "predecessor_id": "task-001",
+      "successor_id": "task-002",
+      "dependency_type": "FS",
+      "lag_days": 0,
+      "reason": "duplicate relationship candidate"
+    },
+    {
+      "predecessor_id": "task-001",
+      "successor_id": "task-002",
+      "dependency_type": "FS",
+      "lag_days": 0,
+      "reason": "duplicate relationship candidate"
+    }
+  ],
+  "duration_overrides": [
+    {
+      "task_id": "task-003",
+      "duration_days": 0,
+      "reason": "invalid duration sample"
+    }
+  ],
+  "lag_overrides": [],
+  "notes": "Sanitized invalid patch fixture"
+}

@@ -1,0 +1,15 @@
+{
+  "project": {
+    "name": "Sanitized Field UAT Low Relationship Coverage",
+    "start_date": "2026-06-01"
+  },
+  "activities": [
+    {"activity_id": "task-001", "code": "TASK-001", "name": "Imported timeline task 1", "duration": 5, "cost": 1000},
+    {"activity_id": "task-002", "code": "TASK-002", "name": "Imported timeline task 2", "duration": 3, "cost": 0},
+    {"activity_id": "task-003", "code": "TASK-003", "name": "Imported timeline task 3", "duration": 4, "cost": 0},
+    {"activity_id": "task-004", "code": "TASK-004", "name": "Imported timeline task 4", "duration": 2, "cost": 0}
+  ],
+  "relationships": [
+    {"rel_id": "rel-001", "pred_id": "task-001", "succ_id": "task-002", "rel_type": "FS", "lag_days": 0}
+  ]
+}

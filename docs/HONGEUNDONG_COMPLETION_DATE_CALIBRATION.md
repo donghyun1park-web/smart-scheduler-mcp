@@ -46,7 +46,11 @@ old_value
 new_value
 reason
 source
+applied_order
 ```
+
+Diagnostics and warning code details are documented in
+[`CALIBRATION_DIAGNOSTICS.md`](CALIBRATION_DIAGNOSTICS.md).
 
 ## Target Finish Date
 
@@ -81,6 +85,10 @@ The calibration report includes:
 - dependency count after
 - duration override count
 - lag override count
+- relationship coverage before/after
+- cost coverage before/after
+- diagnostics before/after
+- field UAT status
 - warnings
 
 ## MCP Tool
@@ -128,6 +136,9 @@ Minimal fixtures live under `tests/fixtures/`:
 
 - `hongeundong_minimal_import.json`
 - `hongeundong_calibration_patch.json`
+- `hongeundong_low_relationship_coverage.json`
+- `hongeundong_invalid_calibration_patch.json`
+- `hongeundong_cycle_patch.json`
 
 They verify that dependency correction can improve the finish-date delta without
 mutating the imported schedule.
