@@ -6,6 +6,7 @@ from pathlib import Path
 
 from core import db
 from core.models import ALLOWED_DISCIPLINES, Activity
+from viewer.components.daily_record_bulk import render as render_daily_bulk
 
 
 def add_activity_from_form(
@@ -91,6 +92,9 @@ def render(project_path: str | Path) -> None:
                 st.rerun()
             st.caption("일일 보고(DailyRecord)가 있으면 그 값이 우선됩니다. "
                        "이 슬라이더는 일보가 없을 때 현장소장이 감으로 입력하는 용도입니다.")
+
+    # Sprint-3 안건 7: TSV 일괄 입력
+    render_daily_bulk(project_path)
 
     wbs_items = db.list_wbs(project_path)
     wbs_options = [item.wbs_id for item in wbs_items]

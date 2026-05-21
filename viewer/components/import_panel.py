@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from tools.import_tools import import_excel
+from viewer.components.import_result_card import render_import_result_card
 
 
 def render(project_path: str | Path) -> None:
@@ -13,4 +14,6 @@ def render(project_path: str | Path) -> None:
     preset_name = st.text_input("Preset name", "sample")
     if st.button("Import Excel") and file_path:
         result = import_excel(project_path, file_path, preset_name=preset_name)
-        st.json(result)
+        render_import_result_card(result)
+        with st.expander("원본 JSON 응답", expanded=False):
+            st.json(result)
