@@ -200,7 +200,7 @@ def import_budgets_to_db(
             unmatched.append(f"{cat.discipline}/{cat.category}: contract={cat.contract_amount:,.0f}, execution={cat.execution_amount:,.0f}")
 
     if unmatched:
-        all_warnings.append(f"Unmatched categories (no activity with matching discipline): {len(unmatched)}")
+        all_warnings.append(f"공종이 일치하는 활동이 없어 매칭되지 않은 예산 카테고리 {len(unmatched)}건")
         for item in unmatched[:10]:
             all_warnings.append(f"  - {item}")
 

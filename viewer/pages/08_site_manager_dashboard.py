@@ -6,6 +6,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from core.dashboard import generate_dashboard_markdown
 from viewer.components.site_manager_dashboard import (
     build_dashboard_report_file,
     build_site_manager_dashboard_summary,
@@ -62,6 +63,24 @@ if source_mode == "SQLite DB":
             issue for issue in dashboard_data["delayed_top10"] if issue.get("severity") in selected_risks
         ]
         render_site_manager_dashboard(dashboard_data)
+
+        # Sprint-1 안건 3: Markdown 보고서 즉시 복사.
+        with st.expander("📋 카톡/메일용 Markdown 보고서 (우측 상단 복사 아이콘)", expanded=False):
+            try:
+                md_result = generate_dashboard_markdown(db_path_text, as_of=as_of_date)
+                md_text = (
+                    md_result.get("markdown", "")
+                    if isinstance(md_result, dict)
+                    else str(md_result)
+                )
+                if md_text:
+                    st.code(md_text, language="markdown")
+                    st.caption("복사 후 카톡/메일에 붙여넣으세요.")
+                else:
+                    st.info("아직 보고서로 만들 데이터가 없습니다.")
+            except Exception as exc:  # noqa: BLE001
+                st.warning(f"Markdown 보고서를 생성하지 못했습니다: {exc}")
+
         if st.button("보고서 생성"):
             result = build_dashboard_report_file(
                 db_path_text,

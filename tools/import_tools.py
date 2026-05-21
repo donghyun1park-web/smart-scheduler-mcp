@@ -250,7 +250,7 @@ def _normalize_import_result(
     if not ok and errors:
         result["error"] = errors[0]
     elif not ok:
-        result["error"] = str(core_result.get("error") or "Import failed.")
+        result["error"] = str(core_result.get("error") or "Excel 가져오기에 실패했습니다.")
     return result
 
 

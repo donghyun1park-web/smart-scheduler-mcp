@@ -90,7 +90,7 @@ def parse_schedule_excel(
         project_start=project_start,
     )
     if not col_date_map:
-        warnings.append("Could not build column-to-date mapping from header rows.")
+        warnings.append("헤더 행에서 날짜 열 매핑을 만들지 못했습니다. 헤더 행 번호를 확인하세요.")
 
     # --- Scan activity rows ---
     raw_activities = _scan_activities(
@@ -143,7 +143,7 @@ def import_schedule_to_db(
     errors: list[str] = []
 
     if not parsed.activities:
-        errors.append("No activities found in the schedule Excel.")
+        errors.append("공정표 Excel에서 활동(Activity)을 찾지 못했습니다.")
     if errors:
         return {"ok": False, "errors": errors, "warnings": parsed.warnings}
 
@@ -211,7 +211,7 @@ def import_schedule_to_db(
             )
             created += 1
         except Exception as exc:
-            parsed.warnings.append(f"Row {pa.row_number} '{name}': {exc}")
+            parsed.warnings.append(f"{pa.row_number}행 '{name}' 활동 생성 실패: {exc}")
 
     return {
         "ok": True,
