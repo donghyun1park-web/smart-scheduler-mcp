@@ -58,31 +58,102 @@ def _profile(value: str) -> UserProfile:
 def render_operations_home(state: dict[str, Any]) -> None:
     import streamlit as st
 
-    st.title("AI 건축공정표 운영센터")
-    st.caption(f"DB: {state.get('db_path', '')}")
+    from viewer.components import ui_kit
+
+    profile_label = state.get("profile_label_ko", "사용자")
     health = dict(state.get("health") or {})
+    score = int(health.get("score", 0) or 0)
+    status = str(health.get("status", "-"))
+
+    st.caption(f"📁 `{state.get('db_path', '')}`  ·  👤 {profile_label}  ·  📅 {state.get('as_of', '')}")
+
+    # ── 상단 KPI 카드 (4개) ───────────────────────────────────────────
+    score_delta = None
+    if score >= 80:
+        score_delta = "양호"
+    elif score >= 60:
+        score_delta = "주의"
+    else:
+        score_delta = "위험"
     cols = st.columns(4)
-    cols[0].metric("데이터 건강점수", f"{health.get('score', 0)}점")
-    cols[1].metric("상태", str(health.get("status", "")))
-    cols[2].metric("오류", f"{health.get('error_count', 0)}건")
-    cols[3].metric("주의", f"{health.get('warning_count', 0)}건")
+    cols[0].metric("📊 데이터 건강점수", f"{score}점", score_delta)
+    with cols[1]:
+        st.markdown("**🚦 종합 상태**")
+        st.markdown(ui_kit.status_pill(status), unsafe_allow_html=True)
+    cols[2].metric("❌ 오류", f"{health.get('error_count', 0)}건")
+    cols[3].metric("⚠ 주의", f"{health.get('warning_count', 0)}건")
 
-    st.subheader("다음 추천 행동")
-    for action in state.get("next_actions", []):
-        st.write(f"**{action['title_ko']}** - {action['reason_ko']}")
-        if action.get("tool_name"):
-            st.code(str(action["tool_name"]), language="text")
+    if health.get("summary_ko"):
+        st.caption(f"💡 {health['summary_ko']}")
 
+    ui_kit.divider()
+
+    # ── 다음 추천 행동 카드 ──────────────────────────────────────────
+    ui_kit.section("다음 추천 행동", icon="🎯", caption=f"{profile_label}의 우선순위 작업")
+    actions = state.get("next_actions") or []
+    if not actions:
+        ui_kit.callout("success", "추천할 작업이 없습니다. 현재 상태가 양호합니다.")
+    else:
+        for idx, action in enumerate(actions, start=1):
+            priority = str(action.get("priority", "medium"))
+            badge_color = {"high": "red", "medium": "yellow", "low": "blue"}.get(priority, "gray")
+            with ui_kit.card():
+                head = (
+                    f"<div style='display:flex; align-items:center; gap:8px;'>"
+                    f"<strong style='font-size:1.05rem;'>{idx}. {action['title_ko']}</strong>"
+                    f"{ui_kit.badge(priority.upper(), badge_color)}"
+                    f"</div>"
+                )
+                st.markdown(head, unsafe_allow_html=True)
+                st.markdown(f"<div style='color:#475569; margin:6px 0;'>{action['reason_ko']}</div>",
+                            unsafe_allow_html=True)
+                if action.get("tool_name"):
+                    st.markdown(
+                        f"<code style='background:#F1F5F9; padding:3px 8px; border-radius:6px; "
+                        f"font-size:0.82rem;'>MCP · {action['tool_name']}</code>",
+                        unsafe_allow_html=True,
+                    )
+
+    ui_kit.divider()
+
+    # ── EVM 쉬운 설명 ────────────────────────────────────────────────
     explanation = dict(state.get("evm_explanation") or {})
-    st.subheader("EVM 쉬운 설명")
-    st.write(explanation.get("headline_ko", ""))
-    st.write(explanation.get("summary_ko", ""))
+    with ui_kit.card("EVM 쉬운 설명", icon="💰", subtitle="공기·원가 효율 한국어 해설"):
+        headline = explanation.get("headline_ko", "")
+        summary = explanation.get("summary_ko", "")
+        if headline:
+            st.markdown(f"**{headline}**")
+        if summary:
+            st.write(summary)
+        if not headline and not summary:
+            ui_kit.callout("warning", "EVM 해석에 필요한 데이터가 부족합니다. 실행예산을 먼저 가져오세요.")
 
+    # ── 워크플로우 상태 ─────────────────────────────────────────────
     workflows = dict(state.get("workflows") or {})
-    st.subheader("워크플로우 상태")
-    for workflow in workflows.values():
-        st.write(f"**{workflow['title_ko']}**: {workflow['summary_ko']}")
-        st.dataframe(workflow.get("steps", []), use_container_width=True)
+    if workflows:
+        ui_kit.section("워크플로우 상태", icon="🧭", caption="일일마감 · 주간보고 사전점검")
+        for workflow in workflows.values():
+            with ui_kit.card(workflow["title_ko"], icon="✅"):
+                st.markdown(f"<div class='sns-card-sub'>{workflow['summary_ko']}</div>",
+                            unsafe_allow_html=True)
+                if workflow.get("steps"):
+                    st.dataframe(workflow["steps"], use_container_width=True, hide_index=True)
+
+    # ── Sprint-1 안건 3: Markdown 보고서 클립보드 ────────────────────
+    db_path = state.get("db_path")
+    if db_path:
+        ui_kit.divider()
+        with st.expander("📋 카톡/메일용 Markdown 보고서 (코드 박스 우측 상단 복사 아이콘)", expanded=False):
+            try:
+                md = generate_dashboard_markdown(db_path)
+                content = md.get("markdown", "") if isinstance(md, dict) else str(md)
+                if content:
+                    st.code(content, language="markdown")
+                    st.caption("복사 후 카톡/메일에 붙여넣으세요.")
+                else:
+                    st.info("아직 보고서로 만들 데이터가 없습니다.")
+            except Exception as exc:  # noqa: BLE001
+                st.warning(f"Markdown 보고서를 생성하지 못했습니다: {exc}")
 
     # Sprint-1 안건 3: Markdown 보고서 클립보드 복사 섹션.
     db_path = state.get("db_path")

@@ -77,62 +77,72 @@ def build_one_page_summary(
 def render_one_page_summary(state: dict[str, Any]) -> None:
     import streamlit as st
 
-    # CSS: keep the whole panel within one A4 sheet when the user prints
-    # via Ctrl+P. Hide Streamlit's sidebar / toolbar in print mode.
-    st.markdown(
-        """
-        <style>
-        @media print {
-            section[data-testid="stSidebar"], header, footer, [data-testid="stToolbar"] { display: none !important; }
-            .block-container { padding: 0 !important; max-width: 100% !important; }
-            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            h1, h2, h3 { page-break-after: avoid; }
-            .one-page-card { font-size: 11px; }
-        }
-        .one-page-card { font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    from viewer.components import ui_kit
+
+    ui_kit.inject_global_css()
 
     briefing = dict(state.get("briefing") or {})
     health = dict(state.get("health") or {})
     today_sched = dict(state.get("today_schedule") or {})
 
-    st.markdown(f"### 📄 {briefing.get('project_name', '프로젝트')} — 1매 요약")
-    st.caption(f"기준일 {state.get('as_of')}  ·  활동 {state.get('activity_count', 0)}건")
+    project_name = briefing.get("project_name", "프로젝트")
+    ui_kit.hero(
+        project_name,
+        subtitle=f"📅 {state.get('as_of')}  ·  🧱 활동 {state.get('activity_count', 0):,}건  ·  현장 1매 요약",
+        icon="📄",
+    )
 
-    # Top KPI cards
+    # ── 핵심 KPI 4개 ───────────────────────────────────────────────
     cols = st.columns(4)
-    cols[0].metric("준공 (계획)", briefing.get("project_name") and "—" or "—")  # placeholder
-    cols[0].metric("상태", briefing.get("status", "?"))
-    cols[1].metric("계획 진행률", f"{briefing.get('overall_planned_pct', 0):.1f}%")
-    cols[2].metric("실적 진행률", f"{briefing.get('overall_actual_pct', 0):.1f}%",
-                   delta=f"{briefing.get('progress_gap_pct', 0):+.1f}%p")
-    cols[3].metric("데이터 건강", f"{health.get('score', 0)}점", help=str(health.get("status", "")))
+    with cols[0]:
+        st.markdown("**🚦 상태**")
+        st.markdown(ui_kit.status_pill(briefing.get("status", "-")), unsafe_allow_html=True)
+    cols[1].metric("📋 계획 진행률", f"{briefing.get('overall_planned_pct', 0):.1f}%")
+    gap = briefing.get("progress_gap_pct", 0)
+    cols[2].metric(
+        "✅ 실적 진행률",
+        f"{briefing.get('overall_actual_pct', 0):.1f}%",
+        delta=f"{gap:+.1f}%p",
+        delta_color="normal" if gap >= 0 else "inverse",
+    )
+    cols[3].metric("📊 데이터 건강", f"{health.get('score', 0)}점", str(health.get("status", "")))
 
+    # ── 오늘 일정 3개 ──────────────────────────────────────────────
     cols = st.columns(3)
-    cols[0].metric("오늘 착수", f"{today_sched.get('starts_today_count', 0)}건")
-    cols[1].metric("오늘 완료", f"{today_sched.get('finishes_today_count', 0)}건")
-    cols[2].metric("미착수 지연", f"{today_sched.get('overdue_start_count', 0)}건")
+    cols[0].metric("🟢 오늘 착수", f"{today_sched.get('starts_today_count', 0)}건")
+    cols[1].metric("✅ 오늘 완료", f"{today_sched.get('finishes_today_count', 0)}건")
+    overdue = today_sched.get("overdue_start_count", 0)
+    cols[2].metric(
+        "🔴 미착수 지연",
+        f"{overdue}건",
+        delta="확인 필요" if overdue > 0 else "없음",
+        delta_color="inverse" if overdue > 0 else "normal",
+    )
 
-    st.markdown(f"**한 줄 요약**: {briefing.get('briefing', '데이터가 부족합니다.')}")
+    # ── 한 줄 요약 callout ─────────────────────────────────────────
+    status_level = (briefing.get("status_level") or "blue").lower()
+    callout_kind = {"green": "success", "yellow": "warning", "red": "danger"}.get(status_level, "info")
+    ui_kit.callout(callout_kind, briefing.get("briefing", "데이터가 부족합니다."), title="한 줄 요약")
 
-    # Critical Path table
-    st.markdown("#### Critical Path TOP 10")
-    cp_rows = state.get("critical_top10") or []
-    if cp_rows:
-        st.dataframe(cp_rows, use_container_width=True, hide_index=True)
-    else:
-        st.info("Critical Path 정보가 없습니다. (calculate_cpm 실행 필요)")
+    # ── Critical Path TOP 10 ────────────────────────────────────────
+    with ui_kit.card("Critical Path TOP 10", icon="🎯", subtitle="공기를 결정하는 핵심 활동"):
+        cp_rows = state.get("critical_top10") or []
+        if cp_rows:
+            st.dataframe(cp_rows, use_container_width=True, hide_index=True)
+        else:
+            ui_kit.callout("warning", "Critical Path 정보가 없습니다. CPM 계산을 먼저 실행하세요.")
 
-    # Cost by discipline
-    st.markdown("#### 공종별 비용 합계")
-    rows = state.get("cost_by_discipline") or []
-    if rows:
-        st.dataframe(rows, use_container_width=True, hide_index=True)
-        st.caption(f"총 비용 합계: {state.get('total_cost', 0):,.0f}원")
-    else:
-        st.info("비용 데이터가 없습니다.")
+    # ── 공종별 비용 ────────────────────────────────────────────────
+    with ui_kit.card("공종별 비용 합계", icon="💰", subtitle="MEP 공종 단위 직접공사비"):
+        rows = state.get("cost_by_discipline") or []
+        if rows:
+            st.dataframe(rows, use_container_width=True, hide_index=True)
+            st.markdown(
+                f"<div style='text-align:right; font-weight:700; color:#1A2540; padding:6px 0;'>"
+                f"총합 {state.get('total_cost', 0):,.0f} 원</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            ui_kit.callout("info", "비용 데이터가 없습니다. 실행예산 Excel을 가져오세요.")
 
-    st.caption("브라우저에서 Ctrl+P (또는 ⌘P)로 인쇄하면 사이드바·툴바가 자동으로 숨겨집니다.")
+    st.caption("💡 브라우저에서 `Ctrl+P` (또는 `⌘P`)로 인쇄하면 사이드바·툴바가 자동으로 숨겨집니다.")

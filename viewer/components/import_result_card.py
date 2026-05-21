@@ -43,31 +43,34 @@ def summarize_import_result(result: Mapping[str, Any]) -> dict[str, Any]:
 def render_import_result_card(result: Mapping[str, Any]) -> None:
     import streamlit as st
 
+    from viewer.components import ui_kit
+
     summary = summarize_import_result(result)
 
-    badge = "✅" if summary["ok"] else "⚠️"
+    icon = "✅" if summary["ok"] else "⚠️"
     dry = " (미리보기)" if summary["dry_run"] else ""
-    st.markdown(f"### {badge} 임포트 결과{dry}")
+    title = f"{icon} 가져오기 결과{dry}"
 
-    cols = st.columns(4)
-    cols[0].metric("활동(Activity)", f"{summary['activities']:,}건")
-    cols[1].metric("WBS", f"{summary['wbs']:,}건")
-    cols[2].metric("비용 항목", f"{summary['cost_items']:,}건")
-    cols[3].metric("선후행 관계", f"{summary['relationships']:,}건")
+    with ui_kit.card(title, icon="📥"):
+        cols = st.columns(4)
+        cols[0].metric("🧱 활동(Activity)", f"{summary['activities']:,}건")
+        cols[1].metric("📊 WBS", f"{summary['wbs']:,}건")
+        cols[2].metric("💰 비용 항목", f"{summary['cost_items']:,}건")
+        cols[3].metric("🔗 선후행 관계", f"{summary['relationships']:,}건")
 
-    if summary["backup_path"]:
-        st.caption(f"백업: `{summary['backup_path']}`")
+        if summary["backup_path"]:
+            st.caption(f"🛡️ 백업: `{summary['backup_path']}`")
 
-    if summary["warnings"]:
-        with st.expander(f"⚠ 경고 {len(summary['warnings'])}건", expanded=False):
-            for w in summary["warnings"][:50]:
-                st.write(f"- {w}")
+        if summary["warnings"]:
+            with st.expander(f"⚠ 경고 {len(summary['warnings'])}건", expanded=False):
+                for w in summary["warnings"][:50]:
+                    st.write(f"- {w}")
 
-    if summary["failed_rows"]:
-        with st.expander(f"❌ 실패 행 {len(summary['failed_rows'])}건", expanded=True):
-            st.dataframe(summary["failed_rows"], use_container_width=True, hide_index=True)
+        if summary["failed_rows"]:
+            with st.expander(f"❌ 실패 행 {len(summary['failed_rows'])}건", expanded=True):
+                st.dataframe(summary["failed_rows"], use_container_width=True, hide_index=True)
 
-    if summary["errors"]:
-        with st.expander(f"❌ 오류 {len(summary['errors'])}건", expanded=True):
-            for e in summary["errors"][:20]:
-                st.error(str(e))
+        if summary["errors"]:
+            with st.expander(f"❌ 오류 {len(summary['errors'])}건", expanded=True):
+                for e in summary["errors"][:20]:
+                    st.error(str(e))

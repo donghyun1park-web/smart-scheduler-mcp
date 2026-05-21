@@ -1,0 +1,16 @@
+# Smart Node-Scheduler — Streamlit theme (light, professional construction palette)
+
+[theme]
+base = "light"
+primaryColor = "#2E6BFF"        # 신뢰감 있는 코발트 블루 (한국 건설 ERP 톤)
+backgroundColor = "#F7F9FC"     # 부드러운 오프화이트
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#1A2540"           # 진한 네이비
+font = "sans serif"
+
+[client]
+showSidebarNavigation = true
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false
