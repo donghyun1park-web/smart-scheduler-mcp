@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any, Iterable, Mapping
 
+from core.number_utils import to_float
+
 
 MILESTONE_PROGRESS = {
     "not_started": 0.0,
@@ -27,8 +29,8 @@ def calculate_weighted_progress(items: Iterable[Mapping[str, Any]]) -> float:
     weighted_sum = 0.0
     total_weight = 0.0
     for item in items:
-        weight = _float_value(item.get("weight", item.get("amount", 0.0)))
-        progress_pct = _float_value(item.get("progress_pct", 0.0))
+        weight = to_float(item.get("weight", item.get("amount", 0.0)))
+        progress_pct = to_float(item.get("progress_pct", 0.0))
         if weight <= 0:
             continue
         weighted_sum += progress_pct * weight
@@ -46,8 +48,8 @@ def summarize_progress(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     prepared: list[dict[str, Any]] = []
     for row in rows:
         progress_pct = calculate_quantity_progress(
-            _float_value(row.get("planned_qty")),
-            _float_value(row.get("actual_qty")),
+            to_float(row.get("planned_qty")),
+            to_float(row.get("actual_qty")),
         )
         prepared.append({**dict(row), "progress_pct": progress_pct})
 
@@ -65,13 +67,7 @@ def _group_progress(rows: list[dict[str, Any]], key: str) -> dict[str, dict[str,
     return {
         name: {
             "progress_pct": calculate_weighted_progress(items),
-            "weight": sum(_float_value(item.get("weight", item.get("amount", 0.0))) for item in items),
+            "weight": sum(to_float(item.get("weight", item.get("amount", 0.0))) for item in items),
         }
         for name, items in grouped.items()
     }
-
-
-def _float_value(value: Any) -> float:
-    if value is None or value == "":
-        return 0.0
-    return float(value)

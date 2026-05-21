@@ -17,7 +17,15 @@ from core.cost import (
 )
 from core.delay_detection import generate_delay_report
 from core.models import Activity, Relationship, WBS
+from core.number_utils import to_float
 from core.progress import calculate_quantity_progress, calculate_weighted_progress
+from core.report_styles import (
+    ReportStyle,
+    format_delay_issue,
+    format_recovery_plan,
+    format_report_summary,
+    normalize_report_style,
+)
 from core.recovery import format_recovery_report, suggest_recovery_plans
 from core.s_curve import build_s_curve_data
 
@@ -79,20 +87,21 @@ def create_weekly_construction_report(
     site_data: dict[str, object],
     output_path: str | Path,
     *,
-    report_style: str = "weekly_meeting",
+    report_style: str = "internal",
 ) -> dict[str, object]:
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     project = _dict_value(site_data.get("project"))
     activities = [_dict_value(activity) for activity in _list_value(site_data.get("activities"))]
     report_week = _date_from_value(project.get("report_week")) or date.today()
+    style = normalize_report_style(report_style)
 
     progress_rows = [
         {
             **activity,
             "progress_pct": calculate_quantity_progress(
-                _float_value(activity.get("planned_qty")),
-                _float_value(activity.get("actual_qty")),
+                to_float(activity.get("planned_qty")),
+                to_float(activity.get("actual_qty")),
             ),
         }
         for activity in activities
@@ -100,16 +109,24 @@ def create_weekly_construction_report(
     actual_progress = calculate_weighted_progress(
         [
             {
-                "progress_pct": _float_value(activity.get("actual_progress_pct", activity.get("progress_pct"))),
-                "weight": _float_value(activity.get("weight", 0.0)),
+                "progress_pct": to_float(activity.get("actual_progress_pct", activity.get("progress_pct"))),
+                "weight": to_float(activity.get("weight", 0.0)),
             }
             for activity in progress_rows
         ]
     )
-    planned_progress = _float_value(project.get("planned_progress_pct"))
+    planned_progress = to_float(project.get("planned_progress_pct"))
     delay_rows = _activity_delay_rows(activities, report_week)
     cost_rows = _cost_rows(activities)
     recovery_rows = _recovery_rows(delay_rows)
+    summary_data = _report_site_data(
+        site_data,
+        project,
+        planned_progress,
+        actual_progress,
+        delay_rows,
+        cost_rows,
+    )
 
     workbook = xlsxwriter.Workbook(str(output))
     header_format = workbook.add_format({"bold": True, "bg_color": "#D9EAF7", "border": 1})
@@ -126,14 +143,16 @@ def create_weekly_construction_report(
         cost_rows,
         header_format,
         title_format,
+        summary_data,
+        style,
     )
     _write_this_week_actuals(workbook, activities, header_format)
-    _write_delay_top10(workbook, delay_rows, header_format, danger_format)
-    _write_recovery_drafts(workbook, recovery_rows, header_format, attention_format)
+    _write_delay_top10(workbook, delay_rows, style, header_format, danger_format)
+    _write_recovery_drafts(workbook, recovery_rows, style, header_format, attention_format)
     _write_cost_status(workbook, cost_rows, header_format, danger_format)
     _write_next_week_plan(workbook, activities, header_format)
     _write_gantt_data(workbook, activities, header_format)
-    _write_report_narrative(workbook, report_style, delay_rows, recovery_rows, header_format, title_format)
+    _write_report_narrative(workbook, style, summary_data, delay_rows, recovery_rows, header_format, title_format)
     workbook.close()
 
     return {
@@ -170,7 +189,7 @@ def _activity_delay_rows(activities: list[dict[str, object]], report_week: date)
                 "owner": activity.get("owner", ""),
                 "reason_code": primary.get("reason_code"),
                 "reason": primary.get("message"),
-                "risk_score": sum(_float_value(issue.get("risk_score")) for issue in issues),
+                "risk_score": sum(to_float(issue.get("risk_score")) for issue in issues),
                 "issues": issues,
             }
         )
@@ -180,13 +199,13 @@ def _activity_delay_rows(activities: list[dict[str, object]], report_week: date)
 def _cost_rows(activities: list[dict[str, object]]) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for activity in activities:
-        execution_budget = _float_value(activity.get("execution_budget"))
-        invested_cost = _float_value(activity.get("invested_cost"))
-        contract_amount = _float_value(activity.get("contract_amount"))
-        billing_amount = _float_value(activity.get("billing_amount"))
+        execution_budget = to_float(activity.get("execution_budget"))
+        invested_cost = to_float(activity.get("invested_cost"))
+        contract_amount = to_float(activity.get("contract_amount"))
+        billing_amount = to_float(activity.get("billing_amount"))
         if execution_budget <= 0 and invested_cost <= 0 and contract_amount <= 0:
             continue
-        progress_pct = _float_value(activity.get("actual_progress_pct"))
+        progress_pct = to_float(activity.get("actual_progress_pct"))
         cost_rate = calculate_cost_execution_rate(execution_budget, invested_cost)
         billing_rate = calculate_billing_rate(contract_amount, billing_amount)
         rows.append(
@@ -218,6 +237,7 @@ def _recovery_rows(delay_rows: list[dict[str, object]]) -> list[dict[str, object
                 "reason_code": reason_code,
                 "candidate": plans[0]["title"] if plans else "현장 협의 후보",
                 "review_note": "검토 필요",
+                "style_sentence": "",
                 "narrative": format_recovery_report(
                     {"activity_name": delay.get("name"), "reason_code": reason_code},
                     plans,
@@ -236,11 +256,13 @@ def _write_v2_dashboard(
     cost_rows: list[dict[str, object]],
     header_format: Format,
     title_format: Format,
+    summary_data: dict[str, object],
+    report_style: ReportStyle,
 ) -> None:
     sheet = workbook.add_worksheet("05_대시보드")
     sheet.write("A1", "현장소장 대시보드", title_format)
-    cost_execution = _average([_float_value(row.get("cost_execution_rate")) for row in cost_rows])
-    billing_rate = _average([_float_value(row.get("billing_rate")) for row in cost_rows])
+    cost_execution = _average([to_float(row.get("cost_execution_rate")) for row in cost_rows])
+    billing_rate = _average([to_float(row.get("billing_rate")) for row in cost_rows])
     risk_discipline = _risk_discipline(delay_rows)
     rows = [
         ("현장명", project.get("name", "")),
@@ -251,7 +273,8 @@ def _write_v2_dashboard(
         ("기성률", billing_rate),
         ("부진공정 수", len(delay_rows)),
         ("위험공종", risk_discipline),
-        ("핵심 리스크", _key_risk(delay_rows, cost_rows)),
+        ("핵심 리스크", _key_risk(delay_rows, cost_rows, report_style)),
+        ("종합 의견", format_report_summary(summary_data, report_style)),
     ]
     for row_idx, (label, value) in enumerate(rows, start=2):
         sheet.write(row_idx - 1, 0, label, header_format)
@@ -273,6 +296,7 @@ def _write_this_week_actuals(
 def _write_delay_top10(
     workbook: Workbook,
     delay_rows: list[dict[str, object]],
+    report_style: ReportStyle,
     header_format: Format,
     danger_format: Format,
 ) -> None:
@@ -280,7 +304,8 @@ def _write_delay_top10(
     headers = ["activity_id", "name", "discipline", "zone", "reason_code", "owner", "risk_score", "reason"]
     _write_headers(sheet, headers, header_format)
     for row_idx, row in enumerate(delay_rows[:10], start=1):
-        values = [_excel_value(row.get(header)) for header in headers]
+        styled_row = {**row, "reason": format_delay_issue(row, report_style)}
+        values = [_excel_value(styled_row.get(header)) for header in headers]
         for col_idx, value in enumerate(values):
             sheet.write(row_idx, col_idx, value, danger_format if col_idx < 7 else None)
 
@@ -288,6 +313,7 @@ def _write_delay_top10(
 def _write_recovery_drafts(
     workbook: Workbook,
     recovery_rows: list[dict[str, object]],
+    report_style: ReportStyle,
     header_format: Format,
     attention_format: Format,
 ) -> None:
@@ -295,7 +321,8 @@ def _write_recovery_drafts(
     headers = ["activity_id", "name", "reason_code", "candidate", "review_note", "narrative"]
     _write_headers(sheet, headers, header_format)
     for row_idx, row in enumerate(recovery_rows, start=1):
-        values = [_excel_value(row.get(header)) for header in headers]
+        styled_row = {**row, "narrative": format_recovery_plan(row, report_style)}
+        values = [_excel_value(styled_row.get(header)) for header in headers]
         for col_idx, value in enumerate(values):
             sheet.write(row_idx, col_idx, value, attention_format if col_idx in {3, 4} else None)
 
@@ -350,7 +377,8 @@ def _write_gantt_data(
 
 def _write_report_narrative(
     workbook: Workbook,
-    report_style: str,
+    report_style: ReportStyle,
+    summary_data: dict[str, object],
     delay_rows: list[dict[str, object]],
     recovery_rows: list[dict[str, object]],
     header_format: Format,
@@ -360,12 +388,13 @@ def _write_report_narrative(
     sheet.write("A1", "주간 공정회의자료", title_format)
     rows = [
         ("report_style", report_style),
+        ("종합 의견", format_report_summary(summary_data, report_style)),
         ("delayed_activity_count", len(delay_rows)),
         ("recovery_draft_count", len(recovery_rows)),
         ("language_policy", "만회대책은 초안/후보이며 현장 검토 필요"),
     ]
-    _write_headers(sheet, ["section", "content"], header_format, row=2)
-    for row_idx, (section, content) in enumerate(rows, start=3):
+    _write_headers(sheet, ["section", "content"], header_format, row=1)
+    for row_idx, (section, content) in enumerate(rows, start=2):
         sheet.write(row_idx, 0, section)
         sheet.write(row_idx, 1, content)
 
@@ -381,14 +410,22 @@ def _risk_discipline(delay_rows: list[dict[str, object]]) -> str:
     scores: dict[str, float] = {}
     for row in delay_rows:
         discipline = str(row.get("discipline") or "")
-        scores[discipline] = scores.get(discipline, 0.0) + _float_value(row.get("risk_score"))
+        scores[discipline] = scores.get(discipline, 0.0) + to_float(row.get("risk_score"))
     if not scores:
         return ""
     return max(scores, key=lambda discipline: scores[discipline])
 
 
-def _key_risk(delay_rows: list[dict[str, object]], cost_rows: list[dict[str, object]]) -> str:
+def _key_risk(
+    delay_rows: list[dict[str, object]],
+    cost_rows: list[dict[str, object]],
+    report_style: ReportStyle,
+) -> str:
     if cost_rows and any(row.get("overrun") for row in cost_rows):
+        if report_style == "client":
+            return "관련 비용 및 진행 현황 확인 필요"
+        if report_style == "hq":
+            return "원가 집행률과 실적공정률 차이 확인 필요"
         return "원가 과투입 검토 필요"
     if delay_rows:
         return str(delay_rows[0].get("reason") or "부진공정 검토 필요")
@@ -403,12 +440,25 @@ def _date_from_value(value: object) -> date | None:
     return date.fromisoformat(str(value))
 
 
-def _float_value(value: object) -> float:
-    if value is None or value == "":
-        return 0.0
-    if isinstance(value, int | float | str):
-        return float(value)
-    return 0.0
+def _report_site_data(
+    site_data: dict[str, object],
+    project: dict[str, object],
+    planned_progress: float,
+    actual_progress: float,
+    delay_rows: list[dict[str, object]],
+    cost_rows: list[dict[str, object]],
+) -> dict[str, object]:
+    cost_execution = _average([to_float(row.get("cost_execution_rate")) for row in cost_rows])
+    billing_rate = _average([to_float(row.get("billing_rate")) for row in cost_rows])
+    summary = {
+        "planned_progress_pct": planned_progress,
+        "actual_progress_pct": actual_progress,
+        "progress_gap_pct": round(actual_progress - planned_progress, 2),
+        "cost_execution_rate": cost_execution,
+        "billing_rate": billing_rate,
+        "delayed_count": len(delay_rows),
+    }
+    return {**site_data, "project": project, "summary": summary}
 
 
 def _default_output_path(project_path: Path) -> Path:

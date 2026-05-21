@@ -458,3 +458,95 @@ Date: 2026-05-21
 - DB-backed Streamlit dashboard loading is still a UI follow-up.
 - Report style templates are still simple.
 - Excel import conflict handling is intentionally MVP-simple.
+
+## v2.1 Follow-Up Stabilization
+
+Date: 2026-05-21
+
+### Changed Files
+
+- `core/number_utils.py`
+- `core/report_styles.py`
+- `core/progress.py`
+- `core/cost.py`
+- `core/delay_detection.py`
+- `core/field_uat.py`
+- `core/reporting.py`
+- `core/recovery.py`
+- `viewer/components/site_manager_dashboard.py`
+- `viewer/pages/08_site_manager_dashboard.py`
+- `tools/construction_tools.py`
+- `tests/test_number_utils.py`
+- `tests/test_report_styles.py`
+- `tests/test_weekly_report_styles.py`
+- `tests/test_site_manager_dashboard_db.py`
+- `tests/test_recovery_templates_extended.py`
+- `README.md`
+- `PLAN.md`
+- `docs/AI_CONSTRUCTION_SCHEDULER_V2_USER_GUIDE.md`
+- `docs/AI_CONSTRUCTION_SCHEDULER_V2_DATA_MODEL.md`
+- `docs/RELEASE_NOTES_v0.2.0-MVP.md`
+- `docs/RELEASE_NOTES_v0.2.1.md`
+- `samples/field_input_template.xlsx`
+- `samples/ai_construction_weekly_report.xlsx`
+
+### Implemented
+
+- Confirmed pre-work baseline on branch `feature/ai-construction-scheduler-v2`:
+  `pytest -q` had `124 passed`; `ruff check .` and `mypy .` passed.
+- Added DB-backed site-manager dashboard loading from `.scheduler` SQLite files
+  with project, as-of date, summary KPI, discipline, zone, delayed TOP 10,
+  cost-risk, material, inspection, and activity sections.
+- Kept the existing JSON/sample dashboard path and added Streamlit source
+  selection plus discipline, zone, and risk filters for DB-backed use.
+- Added `report_style` variants for `internal`, `hq`, and `client`, and applied
+  them to weekly workbook dashboard opinion, delay descriptions, recovery text,
+  and report narrative.
+- Added `core.number_utils` and removed duplicated `_float_value` style helpers
+  from progress, cost, delay detection, reporting, dashboard, tools, and field
+  UAT code.
+- Expanded recovery templates with equipment, inspection/approval, design
+  change, subcontractor, and weather delay reasons while preserving draft,
+  review-required, and human-approval wording.
+- Regenerated sample field input and weekly construction report workbooks.
+
+### Commands Run
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m mypy .
+.\.venv\Scripts\python.exe -m pytest tests\test_number_utils.py tests\test_report_styles.py tests\test_weekly_report_styles.py tests\test_site_manager_dashboard_db.py tests\test_recovery_templates_extended.py -q
+.\.venv\Scripts\python.exe -c "import json; from core.excel_io import create_field_input_template; from core.reporting import create_weekly_construction_report; data=json.load(open('samples\\ai_construction_site_sample.json', encoding='utf-8')); print(create_field_input_template('samples\\field_input_template.xlsx', project_name=data['project']['name'], activities=data['activities'])); print(create_weekly_construction_report(data, 'samples\\ai_construction_weekly_report.xlsx', report_style='internal'))"
+```
+
+### Test Result
+
+- Pre-work full suite: `124 passed`.
+- New v2.1 test bundle before implementation: failed as expected with missing
+  `core.number_utils`, `core.report_styles`, and DB dashboard loader imports.
+- New v2.1 test bundle after implementation: `14 passed`.
+- Final full suite: `138 passed`.
+- `ruff check .`: `All checks passed!`
+- `mypy .`: `Success: no issues found in 107 source files`.
+- Sample weekly report generation: succeeded with `delayed_count=5` and
+  `cost_overrun_count=1`.
+
+### Failures And Fixes
+
+- Failure: extended recovery-template test caught forbidden final-decision text
+  because "설계 미확정" contained "확정".
+- Fix: rewrote the phrase to "설계 변경 검토 구간" and reran the focused test
+  bundle.
+- Failure: first `mypy` run found an object-to-`Project | None` assignment in
+  DB dashboard loading.
+- Fix: explicitly narrowed the loaded project object with `isinstance(...,
+  Project)`.
+
+### Remaining Risks
+
+- DB dashboard project selection remains project-file scoped because the current
+  v2 `activities` table does not store `project_id` directly.
+- Excel chart/print formatting remains MVP-simple.
+- Full EVM, BIM, weather API integration, photos, cloud collaboration, and full
+  authentication remain deferred scope.

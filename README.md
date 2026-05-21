@@ -10,6 +10,16 @@ This branch extends the v0.1 scheduler into an Excel-centered construction
 schedule MVP while preserving the existing CPM, SQLite, MCP, Streamlit, Plotly,
 and v0.1 Excel report behavior.
 
+### v2.1 Follow-Up Stabilization
+
+The v2.1 pass keeps the v2 SQLite and Excel loop intact and adds:
+
+- DB-backed Streamlit site-manager dashboard loading from a `.scheduler` DB.
+- `report_style` audience variants: `internal`, `hq`, and `client`.
+- Shared number conversion helpers in `core.number_utils`.
+- Recovery templates for equipment, inspection/approval, design change,
+  subcontractor, and weather delay reasons.
+
 New v2.0 MVP entry points:
 
 ```powershell
@@ -17,10 +27,13 @@ New v2.0 MVP entry points:
 .\.venv\Scripts\python.exe -c "from core.excel_io import create_field_input_template; print(create_field_input_template('samples\\field_input_template.xlsx', project_name='Demo Site'))"
 
 # Generate a weekly construction report from the sample site data.
-.\.venv\Scripts\python.exe -c "import json; from core.reporting import create_weekly_construction_report; data=json.load(open('samples\\ai_construction_site_sample.json', encoding='utf-8')); print(create_weekly_construction_report(data, 'samples\\ai_construction_weekly_report.xlsx'))"
+.\.venv\Scripts\python.exe -c "import json; from core.reporting import create_weekly_construction_report; data=json.load(open('samples\\ai_construction_site_sample.json', encoding='utf-8')); print(create_weekly_construction_report(data, 'samples\\ai_construction_weekly_report.xlsx', report_style='internal'))"
 
 # Import a completed field-input workbook into SQLite and generate a DB-backed report.
-.\.venv\Scripts\python.exe -c "from core.importer import import_field_input_to_db, generate_weekly_report_from_db; print(import_field_input_to_db('path\\to\\project.scheduler', 'path\\to\\field_input.xlsx', project_id='project-1')); print(generate_weekly_report_from_db('path\\to\\project.scheduler', 'path\\to\\weekly_from_db.xlsx'))"
+.\.venv\Scripts\python.exe -c "from core.importer import import_field_input_to_db, generate_weekly_report_from_db; print(import_field_input_to_db('path\\to\\project.scheduler', 'path\\to\\field_input.xlsx', project_id='project-1')); print(generate_weekly_report_from_db('path\\to\\project.scheduler', 'path\\to\\weekly_from_db.xlsx', report_style='hq'))"
+
+# Load dashboard-ready data directly from SQLite.
+.\.venv\Scripts\python.exe -c "from viewer.components.site_manager_dashboard import load_site_dashboard_data_from_db; print(load_site_dashboard_data_from_db('path\\to\\project.scheduler', project_id='project-1'))"
 
 # Run the site-manager dashboard.
 .\.venv\Scripts\python.exe -m streamlit run viewer/pages/08_site_manager_dashboard.py
@@ -47,6 +60,7 @@ See:
 
 - [AI Construction Scheduler v2 User Guide](docs/AI_CONSTRUCTION_SCHEDULER_V2_USER_GUIDE.md)
 - [AI Construction Scheduler v2 Data Model](docs/AI_CONSTRUCTION_SCHEDULER_V2_DATA_MODEL.md)
+- [Release Notes v0.2.1](docs/RELEASE_NOTES_v0.2.1.md)
 - [Release Notes v0.2.0 MVP](docs/RELEASE_NOTES_v0.2.0-MVP.md)
 
 ## v0.1 Scope

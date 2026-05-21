@@ -289,3 +289,24 @@ and DB-backed weekly report generation.
 - [x] Add Excel input to DB import flow.
 - [x] Add DB-backed weekly report generation and MCP wrappers.
 - [x] Keep `create_excel_report()` and existing v0.1 MCP tools intact.
+
+## v2.1 Follow-Up Stabilization
+
+**Goal:** Close field-use stabilization gaps without rolling back the completed
+v2 schema, CRUD, Excel import, DB report, and MCP wrapper work.
+
+- [x] Add baseline checks before v2.1 work:
+  `pytest -q` -> `124 passed`, `ruff check .` -> passed, `mypy .` -> passed.
+- [x] Add DB-backed dashboard loader
+  `load_site_dashboard_data_from_db(db_path, project_id=None, as_of_date=None)`.
+- [x] Keep existing JSON/sample dashboard path and add Streamlit source
+  selection for SQLite DB vs JSON/sample.
+- [x] Add `core.report_styles` and apply `internal`, `hq`, and `client`
+  wording in weekly reports and DB-backed report generation.
+- [x] Add `core.number_utils` and replace duplicated `_float_value` style logic
+  in progress, cost, delay detection, reporting, dashboard, tools, and field UAT
+  code.
+- [x] Expand recovery candidates with equipment, inspection/approval, design
+  change, subcontractor, and weather delay reasons.
+- [x] Update README, user guide, data-model notes, release notes, and
+  checkpoint log for v2.1.

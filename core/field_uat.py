@@ -15,6 +15,7 @@ from core.calibration import (
     calibrate_project_completion,
 )
 from core.models import Activity, Calendar, Project, Relationship, WBS
+from core.number_utils import to_float
 from tools.import_tools import import_excel
 from tools.report_tools import generate_report
 
@@ -114,7 +115,7 @@ def _load_imported_schedule(project_path: Path, imported_schedule: dict[str, obj
                 discipline=str(item.get("discipline") or "공통"),
                 zone=str(item.get("zone") or ""),
                 duration=_int_value(item["duration"]),
-                cost=_float_value(item.get("cost") or 0),
+                cost=to_float(item.get("cost") or 0),
             ),
         )
     for item in cast(list[dict[str, object]], imported_schedule.get("relationships") or []):
@@ -348,9 +349,3 @@ def _int_value(value: object) -> int:
     if isinstance(value, float | str):
         return int(value)
     return int(str(value))
-
-
-def _float_value(value: object) -> float:
-    if isinstance(value, int | float):
-        return float(value)
-    return float(str(value))

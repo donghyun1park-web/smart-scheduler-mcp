@@ -52,6 +52,7 @@ Baseline schedule revisions.
 
 - `snapshot_id`
 - `baseline_id`
+- `project_id`
 - `activity_id`
 - `start_date`
 - `finish_date`
@@ -125,4 +126,9 @@ style.
 - Excel input can be read and imported into the v2 tables.
 - DB-backed weekly report generation builds normalized report data from these
   tables.
+- v2.1 DB-backed dashboard loading reads the same tables and returns summary,
+  discipline, zone, delayed TOP 10, cost-risk, material, inspection, and
+  activity sections.
+- Numeric conversion for progress, cost, delay, reporting, and dashboard code
+  is centralized in `core.number_utils`.
 - Activity table bloat is explicitly guarded by tests.

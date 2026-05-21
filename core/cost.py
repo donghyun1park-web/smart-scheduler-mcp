@@ -2,19 +2,17 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Mapping
 
+from core.number_utils import percentage, to_float
+
 
 def calculate_cost_execution_rate(execution_budget: float, invested_cost: float) -> float:
     """Return cost execution rate as a percentage."""
-    if execution_budget <= 0:
-        return 0.0
-    return round((invested_cost / execution_budget) * 100, 2)
+    return round(percentage(invested_cost, execution_budget), 2)
 
 
 def calculate_billing_rate(contract_amount: float, billing_amount: float) -> float:
     """Return billing rate as a percentage."""
-    if contract_amount <= 0:
-        return 0.0
-    return round((billing_amount / contract_amount) * 100, 2)
+    return round(percentage(billing_amount, contract_amount), 2)
 
 
 def detect_cost_overrun(
@@ -34,9 +32,9 @@ def forecast_completion_cost(items: Iterable[Mapping[str, Any]]) -> dict[str, fl
     invested_cost_total = 0.0
     forecast_total = 0.0
     for item in items:
-        budget = _float_value(item.get("execution_budget"))
-        invested = _float_value(item.get("invested_cost"))
-        progress_pct = _as_percent(_float_value(item.get("progress_pct")))
+        budget = to_float(item.get("execution_budget"))
+        invested = to_float(item.get("invested_cost"))
+        progress_pct = _as_percent(to_float(item.get("progress_pct")))
         execution_budget_total += budget
         invested_cost_total += invested
         if progress_pct > 0:
@@ -54,9 +52,3 @@ def forecast_completion_cost(items: Iterable[Mapping[str, Any]]) -> dict[str, fl
 
 def _as_percent(value: float) -> float:
     return value * 100 if 0 <= value <= 1 else value
-
-
-def _float_value(value: Any) -> float:
-    if value is None or value == "":
-        return 0.0
-    return float(value)

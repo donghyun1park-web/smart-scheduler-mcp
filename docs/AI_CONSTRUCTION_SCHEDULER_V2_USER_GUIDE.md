@@ -1,10 +1,14 @@
-# AI Construction Scheduler v2.0 MVP User Guide
+# AI Construction Scheduler v2 User Guide
 
 ## Scope
 
-The v2.0 MVP adds field-progress, cost, delay, recovery-draft, Excel, dashboard,
-and MCP workflows on top of the existing Smart Node-Scheduler v0.1 CPM,
-SQLite, MCP, Streamlit, Plotly, and Excel report foundation.
+The v2.0 MVP adds field-progress, cost, delay, recovery-draft, Excel,
+dashboard, and MCP workflows on top of the existing Smart Node-Scheduler v0.1
+CPM, SQLite, MCP, Streamlit, Plotly, and Excel report foundation.
+
+The v2.1 stabilization pass adds DB-backed dashboard loading, audience-specific
+report prose, shared number conversion helpers, and additional field recovery
+templates without replacing the v2 SQLite schema.
 
 ## Environment
 
@@ -46,7 +50,7 @@ fields. Red/orange styling is reserved for error and attention states.
 Generate the sample weekly report:
 
 ```powershell
-.\.venv\Scripts\python.exe -c "import json; from core.reporting import create_weekly_construction_report; data=json.load(open('samples\\ai_construction_site_sample.json', encoding='utf-8')); print(create_weekly_construction_report(data, 'samples\\ai_construction_weekly_report.xlsx'))"
+.\.venv\Scripts\python.exe -c "import json; from core.reporting import create_weekly_construction_report; data=json.load(open('samples\\ai_construction_site_sample.json', encoding='utf-8')); print(create_weekly_construction_report(data, 'samples\\ai_construction_weekly_report.xlsx', report_style='internal'))"
 ```
 
 Report sheets include:
@@ -60,6 +64,14 @@ Report sheets include:
 - `간트 데이터`
 - `07_보고서`
 
+`report_style` controls the report wording:
+
+- `internal`: field/internal wording with direct action and owner follow-up.
+- `hq`: headquarters wording focused on progress, cost execution, billing, and
+  management risk.
+- `client`: official owner/supervisor wording that avoids internal cost,
+  blame, and final-decision phrasing.
+
 ## Excel Input To SQLite
 
 After a field workbook has been filled in, import it into a `.scheduler` DB:
@@ -71,7 +83,7 @@ After a field workbook has been filled in, import it into a `.scheduler` DB:
 Then generate a DB-backed weekly report:
 
 ```powershell
-.\.venv\Scripts\python.exe -c "from core.importer import generate_weekly_report_from_db; print(generate_weekly_report_from_db('path\\to\\project.scheduler', 'path\\to\\weekly_from_db.xlsx'))"
+.\.venv\Scripts\python.exe -c "from core.importer import generate_weekly_report_from_db; print(generate_weekly_report_from_db('path\\to\\project.scheduler', 'path\\to\\weekly_from_db.xlsx', report_style='hq'))"
 ```
 
 The import flow reads `01_실적입력`, `02_원가입력`, and `03_자재검측`, validates
@@ -98,6 +110,19 @@ The dashboard displays:
 - Key risks
 - Green/yellow/orange/red status
 
+In v2.1, the Streamlit page supports two data sources:
+
+- `SQLite DB`: enter a `.scheduler` DB path, optional `project_id`, and
+  `as_of_date`; then use discipline, zone, and risk filters.
+- `JSON/sample`: keep the existing sample JSON or uploaded JSON workflow for
+  compatibility.
+
+You can also load dashboard data directly in Python:
+
+```powershell
+.\.venv\Scripts\python.exe -c "from viewer.components.site_manager_dashboard import load_site_dashboard_data_from_db; print(load_site_dashboard_data_from_db('path\\to\\project.scheduler', project_id='project-1'))"
+```
+
 ## MCP Tools
 
 The v2.0 MVP registers these tools:
@@ -113,13 +138,17 @@ The v2.0 MVP registers these tools:
 `suggest_recovery` returns candidate recovery drafts and assumptions only. Field
 leadership must review and decide whether to apply any plan.
 
+v2.1 recovery templates cover material, manpower, predecessor, equipment,
+inspection/approval, design change, subcontractor, weather, and general delay
+reasons. Outputs continue to use "초안", "후보", "검토 필요", and approval-required
+wording.
+
 ## Known Limitations
 
 - Daily/cost/material/inspection workbook rows can be imported into SQLite, but
   conflict resolution is intentionally simple MVP behavior.
-- The v2 dashboard reads normalized JSON sample data. DB-backed dashboard loading
-  is available indirectly through the DB-backed report builder and remains a UI
-  follow-up.
+- DB-backed dashboard loading assumes the current v2 schema, where activities
+  are project-file scoped rather than separately project-scoped inside the DB.
 - Weekly report charts and print layouts are intentionally simple.
 - Full EVM, BIM, weather APIs, photo handling, cloud collaboration, and user
   authentication are outside MVP scope.

@@ -3,13 +3,15 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Iterable, Mapping
 
+from core.number_utils import to_float
+
 
 Issue = dict[str, Any]
 
 
 def detect_schedule_delay(activity: Mapping[str, Any], threshold_pct: float = 3.0) -> list[Issue]:
-    planned = _float_value(activity.get("planned_progress_pct"))
-    actual = _float_value(activity.get("actual_progress_pct"))
+    planned = to_float(activity.get("planned_progress_pct"))
+    actual = to_float(activity.get("actual_progress_pct"))
     gap = round(planned - actual, 2)
     if gap <= threshold_pct:
         return []
@@ -122,8 +124,8 @@ def detect_inspection_delays(activity: Mapping[str, Any], *, today: date | None 
 
 
 def detect_manpower_shortage(activity: Mapping[str, Any]) -> list[Issue]:
-    planned = _float_value(activity.get("planned_workers"))
-    actual = _float_value(activity.get("actual_workers"))
+    planned = to_float(activity.get("planned_workers"))
+    actual = to_float(activity.get("actual_workers"))
     if planned <= 0 or actual >= planned:
         return []
     shortage = planned - actual
@@ -153,7 +155,7 @@ def generate_delay_report(
         issues.extend(detect_material_delays(activity, today=today))
         issues.extend(detect_inspection_delays(activity, today=today))
         issues.extend(detect_manpower_shortage(activity))
-    issues.sort(key=lambda issue: (-_float_value(issue.get("risk_score")), str(issue.get("activity_id"))))
+    issues.sort(key=lambda issue: (-to_float(issue.get("risk_score")), str(issue.get("activity_id"))))
     return issues[:top_n]
 
 
@@ -196,12 +198,6 @@ def _severity_from_days(days: int) -> str:
     if days > 7:
         return "danger"
     return "warning"
-
-
-def _float_value(value: Any) -> float:
-    if value is None or value == "":
-        return 0.0
-    return float(value)
 
 
 def _date_value(value: Any) -> date | None:

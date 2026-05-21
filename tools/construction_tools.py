@@ -9,6 +9,7 @@ from core.importer import (
     generate_weekly_report_from_db as generate_weekly_report_from_db_core,
     import_field_input_to_db,
 )
+from core.number_utils import to_float
 from core.reporting import create_weekly_construction_report
 from core.recovery import format_recovery_report, suggest_recovery_plans
 from core.validation import validate_progress_quantities
@@ -19,14 +20,14 @@ def input_daily_record(record: dict[str, object]) -> dict[str, object]:
     """Validate and normalize one field daily-progress record."""
     activity_id = str(record.get("activity_id") or "").strip()
     work_date = str(record.get("work_date") or "").strip()
-    planned_qty = _float(record.get("planned_qty"))
-    actual_qty = _float(record.get("actual_qty"))
+    planned_qty = to_float(record.get("planned_qty"))
+    actual_qty = to_float(record.get("actual_qty"))
     normalized = {
         "activity_id": activity_id,
         "work_date": work_date,
         "planned_qty": planned_qty,
         "actual_qty": actual_qty,
-        "workers": int(_float(record.get("workers"))),
+        "workers": int(to_float(record.get("workers"))),
         "equipment": str(record.get("equipment") or "").strip(),
         "owner": str(record.get("owner") or "").strip(),
         "remarks": str(record.get("remarks") or "").strip(),
@@ -115,11 +116,3 @@ def _activities(site_data: dict[str, object]) -> list[dict[str, Any]]:
     if not isinstance(activities, list):
         return []
     return [activity for activity in activities if isinstance(activity, dict)]
-
-
-def _float(value: object) -> float:
-    if value is None or value == "":
-        return 0.0
-    if isinstance(value, int | float | str):
-        return float(value)
-    return 0.0

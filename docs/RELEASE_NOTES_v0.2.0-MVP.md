@@ -54,3 +54,7 @@ See `CHECKPOINT_LOG.md` for exact results by phase.
 - Report style separation exists as an entry point but needs richer templates.
 - Full EVM, BIM, weather API, photo workflow, cloud collaboration, and full user
   authentication are deferred.
+
+See `docs/RELEASE_NOTES_v0.2.1.md` for the follow-up pass that adds DB-backed
+dashboard loading, audience-specific report prose, shared number utilities, and
+expanded recovery templates.
