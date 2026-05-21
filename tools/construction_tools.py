@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from core.delay_detection import generate_delay_report
+from core import db
 from core.importer import (
     generate_weekly_report_from_db as generate_weekly_report_from_db_core,
     import_field_input_to_db,
@@ -101,6 +102,28 @@ def generate_weekly_report_from_db(
     report_style: str = "internal",
 ) -> dict[str, object]:
     return generate_weekly_report_from_db_core(db_path, output_path, report_style=report_style)
+
+
+def list_change_log_tool(
+    db_path: str,
+    target_table: str | None = None,
+    target_id: str | None = None,
+    limit: int = 100,
+) -> dict[str, object]:
+    changes = db.list_change_log(db_path, target_table=target_table, target_id=target_id)
+    limited = changes[: max(limit, 0)]
+    return {
+        "ok": True,
+        "db_path": str(db_path),
+        "count": len(limited),
+        "changes": [
+            {
+                key: value.isoformat() if isinstance(value, date) else value
+                for key, value in change.__dict__.items()
+            }
+            for change in limited
+        ],
+    }
 
 
 def summarize_site_status(

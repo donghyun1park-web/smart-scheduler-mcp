@@ -570,6 +570,20 @@ def list_daily_records(
     return [_daily_record_from_row(row) for row in rows]
 
 
+def delete_daily_records(
+    path: str | Path,
+    *,
+    activity_id: str,
+    work_date: str | date,
+) -> int:
+    with _connect(path) as conn:
+        cursor = conn.execute(
+            "DELETE FROM daily_records WHERE activity_id = ? AND work_date = ?",
+            (activity_id, _date_param(work_date)),
+        )
+    return cursor.rowcount
+
+
 def get_cumulative_qty(path: str | Path, activity_id: str) -> dict[str, float]:
     with _connect(path) as conn:
         row = conn.execute(

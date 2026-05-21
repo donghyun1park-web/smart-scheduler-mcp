@@ -310,3 +310,22 @@ v2 schema, CRUD, Excel import, DB report, and MCP wrapper work.
   change, subcontractor, and weather delay reasons.
 - [x] Update README, user guide, data-model notes, release notes, and
   checkpoint log for v2.1.
+
+## v2.2 Field Stabilization
+
+**Goal:** Make real `.scheduler` DB and field Excel import workflows safer for
+field use without changing the v2 schema.
+
+- [x] Confirm v2.2 baseline on `feature/ai-construction-scheduler-v2`:
+  `pytest -q` -> `138 passed`, `ruff check .` -> passed, `mypy .` -> passed.
+- [x] Add `docs/PR_DESCRIPTION_v2.md` with summary, quality gates,
+  compatibility notes, v1-to-v2 migration note, and merge-commit guidance.
+- [x] Add `conflict_policy`, `dry_run`, validation, and pre-import backup
+  support to `import_field_input_to_db`.
+- [x] Add row-level change-log entries for `replace` conflict handling.
+- [x] Expose `list_change_log_tool` through the MCP tool surface.
+- [x] Add `scripts/smoke_test_real_scheduler.py` and real DB smoke-test docs.
+- [x] Improve Excel input templates with freeze panes, autofilter, protection,
+  unlocked input cells, and data validation.
+- [x] Add simple EVM helpers and surface EVM in dashboard/report outputs.
+- [x] Add Streamlit dashboard report generation/download support.

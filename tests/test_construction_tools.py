@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 
 from openpyxl import load_workbook
 
+from core import db
+from core.models import Calendar, ChangeLogEntry, Project
 from core.recovery import FORBIDDEN_FINAL_WORDS
 from tools.construction_tools import (
     detect_delays,
@@ -11,6 +14,7 @@ from tools.construction_tools import (
     generate_weekly_report_from_db,
     input_daily_record,
     import_excel_input_to_db,
+    list_change_log_tool,
     suggest_recovery,
     summarize_site_status,
 )
@@ -68,6 +72,34 @@ def test_generate_weekly_report_writes_xlsx(tmp_path):
 def test_db_backed_tool_names_exist_for_mcp_surface():
     assert callable(import_excel_input_to_db)
     assert callable(generate_weekly_report_from_db)
+    assert callable(list_change_log_tool)
+
+
+def test_list_change_log_tool_filters_and_limits_entries(tmp_path):
+    db_path = tmp_path / "project.scheduler"
+    db.initialize_database(db_path)
+    db.create_calendar(db_path, Calendar("cal-1", "Calendar", "1111100"))
+    db.create_project(db_path, Project("project-1", "Demo", date(2026, 5, 1), "cal-1"))
+    db.log_change(
+        db_path,
+        ChangeLogEntry(
+            "chg-1",
+            "daily_records",
+            "act-1:2026-05-21",
+            "old",
+            "new",
+            "excel_import_replace",
+            "tester",
+            changed_at=date(2026, 5, 21),
+        ),
+    )
+
+    result = list_change_log_tool(str(db_path), target_table="daily_records", limit=1)
+
+    assert result["ok"] is True
+    assert result["count"] == 1
+    assert result["changes"][0]["change_id"] == "chg-1"
+    assert result["changes"][0]["target_table"] == "daily_records"
 
 
 def _load_sample_data() -> dict[str, object]:

@@ -44,14 +44,18 @@ def format_report_summary(site_data: Mapping[str, Any], style: ReportStyle) -> s
     delayed_count = int(to_float(summary.get("delayed_count")))
     cost_execution = to_float(summary.get("cost_execution_rate"))
     billing_rate = to_float(summary.get("billing_rate"))
+    evm = _mapping(summary.get("evm"))
+    spi = evm.get("spi")
+    cpi = evm.get("cpi")
     if style == "internal":
         return (
             f"계획 {planned:.1f}% 대비 실적 {actual:.1f}%로 차이 {gap:.1f}%입니다. "
             f"부진공정 {delayed_count}건은 즉시 조치 필요하며 담당자 확인 필요."
         )
     if style == "hq":
+        evm_text = f" SPI {spi}, CPI {cpi}," if spi is not None or cpi is not None else ""
         return (
-            f"실적공정률 {actual:.1f}%, 계획 대비 차이 {gap:.1f}%, "
+            f"실적공정률 {actual:.1f}%, 계획 대비 차이 {gap:.1f}%,{evm_text} "
             f"원가 집행률 {cost_execution:.1f}%, 기성률 {billing_rate:.1f}%입니다. "
             "공정 리스크 관리 필요."
         )

@@ -550,3 +550,116 @@ Date: 2026-05-21
 - Excel chart/print formatting remains MVP-simple.
 - Full EVM, BIM, weather API integration, photos, cloud collaboration, and full
   authentication remain deferred scope.
+
+## v2.2 Field Stabilization
+
+Date: 2026-05-21
+
+### Changed Files
+
+- `core/db.py`
+- `core/importer.py`
+- `core/excel_io.py`
+- `core/evm.py`
+- `core/reporting.py`
+- `core/report_styles.py`
+- `scripts/__init__.py`
+- `scripts/smoke_test_real_scheduler.py`
+- `server.py`
+- `tools/construction_tools.py`
+- `viewer/components/site_manager_dashboard.py`
+- `viewer/pages/08_site_manager_dashboard.py`
+- `tests/test_importer_v2_2.py`
+- `tests/test_smoke_script_contract.py`
+- `tests/test_excel_io.py`
+- `tests/test_evm.py`
+- `tests/test_dashboard_report_helper.py`
+- `tests/test_construction_tools.py`
+- `tests/test_server.py`
+- `tests/test_site_manager_dashboard_db.py`
+- `tests/test_weekly_report_styles.py`
+- `README.md`
+- `PLAN.md`
+- `docs/AI_CONSTRUCTION_SCHEDULER_V2_USER_GUIDE.md`
+- `docs/PR_DESCRIPTION_v2.md`
+- `docs/RELEASE_NOTES_v0.2.0-MVP.md`
+- `docs/RELEASE_NOTES_v0.2.2.md`
+- `docs/SMOKE_TEST_REAL_SCHEDULER.md`
+- `samples/field_input_template.xlsx`
+- `samples/ai_construction_weekly_report.xlsx`
+
+### Implemented
+
+- Confirmed v2.2 baseline on branch `feature/ai-construction-scheduler-v2`:
+  `pytest -q` had `138 passed`; `ruff check .` and `mypy .` passed.
+- Added import `conflict_policy`, `dry_run`, `validate_before_commit`,
+  `backup_before_import`, and `actor` options.
+- Added conflict-safe daily-record import handling for `fail`, `skip`, and
+  `replace`; `merge` returns a clear unsupported message.
+- Added batch validation before import commit for missing/unknown activity IDs,
+  negative quantities, progress issues, and cost/progress warnings.
+- Added import pre-backup using `core.backup.create_backup()` and exposed
+  `backup_path` in the import result.
+- Added row-level change-log entries for replace imports and a
+  `list_change_log_tool` MCP wrapper.
+- Added a real DB smoke-test script that copies source `.scheduler` DB files
+  before dashboard, dry-run import, report generation, and recovery checks.
+- Improved Excel field templates with freeze panes, autofilter, protected
+  sheets, unlocked input cells, data validations, print layout, and regenerated
+  sample workbooks.
+- Added simple EVM snapshots/totals and surfaced them in dashboard summaries,
+  HQ report wording, and Excel cost-status columns.
+- Added dashboard report generation/download helper and Streamlit button.
+- Added PR description and v0.2.2 release notes.
+
+### Commands Run
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m mypy .
+.\.venv\Scripts\python.exe -m pytest tests\test_importer_v2_2.py tests\test_excel_import_flow.py tests\test_db_v2_crud.py -q
+.\.venv\Scripts\python.exe -m pytest tests\test_construction_tools.py tests\test_server.py -q
+.\.venv\Scripts\python.exe -m pytest tests\test_smoke_script_contract.py -q
+.\.venv\Scripts\python.exe -m pytest tests\test_excel_io.py -q
+.\.venv\Scripts\python.exe -m pytest tests\test_evm.py tests\test_dashboard_report_helper.py tests\test_site_manager_dashboard_db.py tests\test_weekly_report_styles.py -q
+.\.venv\Scripts\python.exe -c "import json; from core.excel_io import create_field_input_template; from core.reporting import create_weekly_construction_report; data=json.load(open('samples\\ai_construction_site_sample.json', encoding='utf-8')); print(create_field_input_template('samples\\field_input_template.xlsx', project_name=data['project']['name'], activities=data['activities'])); print(create_weekly_construction_report(data, 'samples\\ai_construction_weekly_report.xlsx', report_style='internal'))"
+.\.venv\Scripts\python.exe scripts\smoke_test_real_scheduler.py --db C:\tmp\smart_scheduler_v2_2_smoke\demo.scheduler --excel C:\tmp\smart_scheduler_v2_2_smoke\field.xlsx --out-dir C:\tmp\smart_scheduler_v2_2_smoke\outputs
+```
+
+### Test Result
+
+- New v2.2 importer tests before implementation: failed as expected with
+  missing `conflict_policy`, `dry_run`, validation, and unknown-activity
+  handling.
+- New smoke script contract before implementation: failed as expected with
+  missing `scripts.smoke_test_real_scheduler`.
+- New Excel protection test before implementation: failed as expected because
+  `freeze_panes` and sheet protection were absent.
+- New EVM/dashboard helper tests before implementation: failed as expected with
+  missing `core.evm` and `build_dashboard_report_file`.
+- v2.2 focused bundle: `33 passed`.
+- Full suite: `153 passed`.
+- `ruff check .`: `All checks passed!`.
+- `mypy .`: `Success: no issues found in 114 source files`.
+- Demo smoke script: passed on a copied DB with `original_unchanged=true`.
+
+### Failures And Fixes
+
+- Failure: direct `python scripts\smoke_test_real_scheduler.py` could not import
+  `core`.
+- Fix: inserted repo root into `sys.path` for direct script execution and marked
+  the subsequent imports with `# noqa: E402`.
+- Failure: first post-implementation `ruff` run flagged the intentional import
+  order in the smoke script.
+- Fix: added the explicit `E402` exceptions above and reran ruff.
+
+### Remaining Risks
+
+- `merge` conflict policy is intentionally unsupported until a field-approved
+  merge rule exists.
+- Import validation is conservative and focused on v2.2 field-safety checks;
+  richer row-level material/inspection validation can be expanded later.
+- Smoke testing against the user's actual field DB still needs the real
+  `.scheduler` and Excel input files; current smoke evidence uses a generated
+  demo DB copy.

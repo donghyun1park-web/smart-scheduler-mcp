@@ -10,6 +10,10 @@ The v2.1 stabilization pass adds DB-backed dashboard loading, audience-specific
 report prose, shared number conversion helpers, and additional field recovery
 templates without replacing the v2 SQLite schema.
 
+The v2.2 field stabilization pass adds safe import conflict policies, dry-run
+validation, import pre-backup, change-log MCP access, a real DB smoke-test
+script, protected Excel templates, and simple EVM summaries.
+
 ## Environment
 
 Use the project virtual environment with Python `>=3.11,<3.13`.
@@ -80,6 +84,22 @@ After a field workbook has been filled in, import it into a `.scheduler` DB:
 .\.venv\Scripts\python.exe -c "from core.importer import import_field_input_to_db; print(import_field_input_to_db('path\\to\\project.scheduler', 'path\\to\\field_input.xlsx', project_id='project-1'))"
 ```
 
+Useful v2.2 import options:
+
+```powershell
+# Validate only. No DB changes and no backup.
+.\.venv\Scripts\python.exe -c "from core.importer import import_field_input_to_db; print(import_field_input_to_db('path\\to\\project.scheduler', 'path\\to\\field_input.xlsx', dry_run=True))"
+
+# Keep existing duplicate daily records.
+.\.venv\Scripts\python.exe -c "from core.importer import import_field_input_to_db; print(import_field_input_to_db('path\\to\\project.scheduler', 'path\\to\\field_input.xlsx', conflict_policy='skip', actor='site-manager'))"
+
+# Replace duplicate daily records and write change_log entries.
+.\.venv\Scripts\python.exe -c "from core.importer import import_field_input_to_db; print(import_field_input_to_db('path\\to\\project.scheduler', 'path\\to\\field_input.xlsx', conflict_policy='replace', actor='site-manager'))"
+```
+
+Daily-record conflicts are detected by `activity_id + work_date`. The default
+policy is `fail` so existing records are not silently overwritten.
+
 Then generate a DB-backed weekly report:
 
 ```powershell
@@ -89,6 +109,9 @@ Then generate a DB-backed weekly report:
 The import flow reads `01_실적입력`, `02_원가입력`, and `03_자재검측`, validates
 sheet/header structure, stores records in v2 SQLite tables, and records an
 import event in `change_log`.
+
+Before a non-dry-run import, v2.2 creates a backup under the project `backups`
+folder and returns `backup_path` in the import result.
 
 ## Site-Manager Dashboard
 
@@ -123,6 +146,20 @@ You can also load dashboard data directly in Python:
 .\.venv\Scripts\python.exe -c "from viewer.components.site_manager_dashboard import load_site_dashboard_data_from_db; print(load_site_dashboard_data_from_db('path\\to\\project.scheduler', project_id='project-1'))"
 ```
 
+The DB-backed dashboard can generate reports with `internal`, `hq`, or `client`
+style and expose the result through the Streamlit download button.
+
+## Real DB Smoke Test
+
+Never test directly against the source `.scheduler` file. Use the smoke script:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\smoke_test_real_scheduler.py --db path\to\real.scheduler --excel path\to\field_input.xlsx --out-dir smoke_outputs
+```
+
+Add `--apply` only when you want to apply the Excel import to the copied DB
+after dry-run validation.
+
 ## MCP Tools
 
 The v2.0 MVP registers these tools:
@@ -133,6 +170,7 @@ The v2.0 MVP registers these tools:
 - `generate_weekly_report`
 - `import_excel_input_to_db`
 - `generate_weekly_report_from_db`
+- `list_change_log_tool`
 - `summarize_site_status`
 
 `suggest_recovery` returns candidate recovery drafts and assumptions only. Field

@@ -53,6 +53,23 @@ def test_db_weekly_report_passes_report_style_to_workbook(tmp_path):
     workbook.close()
 
 
+def test_weekly_report_cost_sheet_contains_evm_columns(tmp_path):
+    data = _load_sample_data()
+    output = tmp_path / "weekly_report.xlsx"
+
+    create_weekly_construction_report(data, output, report_style="hq")
+
+    workbook = load_workbook(output)
+    costs = workbook["원가현황"]
+    headers = [cell.value for cell in costs[1]]
+    assert "planned_value" in headers
+    assert "earned_value" in headers
+    assert "actual_cost" in headers
+    assert "spi" in headers
+    assert "cpi" in headers
+    workbook.close()
+
+
 def _load_sample_data() -> dict[str, object]:
     with open("samples/ai_construction_site_sample.json", encoding="utf-8") as file:
         return json.load(file)

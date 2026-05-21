@@ -262,7 +262,7 @@ def _formats(workbook: xlsxwriter.Workbook) -> dict[str, xlsxwriter.format.Forma
     return {
         "title": workbook.add_format({"bold": True, "font_size": 14}),
         "header": workbook.add_format({"bold": True, "bg_color": "#D9EAF7", "border": 1}),
-        "input": workbook.add_format({"bg_color": "#FFEB9C", "border": 1}),
+        "input": workbook.add_format({"bg_color": "#FFEB9C", "border": 1, "locked": False}),
         "auto": workbook.add_format({"bg_color": "#D9EAD3", "border": 1}),
         "error": workbook.add_format({"bg_color": "#F4CCCC", "border": 1}),
         "attention": workbook.add_format({"bg_color": "#FCE4D6", "border": 1}),
@@ -276,6 +276,7 @@ def _write_daily_sheet(
     formats: dict[str, xlsxwriter.format.Format],
 ) -> None:
     sheet = workbook.add_worksheet(FIELD_WORKBOOK_SHEETS[0])
+    _prepare_input_sheet(sheet, 7, max(len(activities), 1))
     sheet.write("A1", "project_name", formats["header"])
     sheet.write("B1", project_name, formats["input"])
     headers = ["activity_id", "work_date", "planned_qty", "actual_qty", "workers", "equipment", "owner", "remarks"]
@@ -286,6 +287,7 @@ def _write_daily_sheet(
             sheet.write_blank(row_idx, col_idx, None, formats["input"])
     if not activities:
         sheet.write_blank(3, 1, None, formats["input"])
+    _add_daily_validations(sheet, max(len(activities), 1))
 
 
 def _write_cost_sheet(
@@ -295,6 +297,7 @@ def _write_cost_sheet(
     formats: dict[str, xlsxwriter.format.Format],
 ) -> None:
     sheet = workbook.add_worksheet(FIELD_WORKBOOK_SHEETS[1])
+    _prepare_input_sheet(sheet, 5, max(len(activities), 1))
     sheet.write("A1", "project_name", formats["header"])
     sheet.write("B1", project_name, formats["input"])
     headers = ["activity_id", "contract_amount", "execution_budget", "invested_cost", "billing_amount", "remarks"]
@@ -312,6 +315,7 @@ def _write_material_inspection_sheet(
     formats: dict[str, xlsxwriter.format.Format],
 ) -> None:
     sheet = workbook.add_worksheet(FIELD_WORKBOOK_SHEETS[2])
+    _prepare_input_sheet(sheet, 7, max(len(activities), 1))
     sheet.write("A1", "project_name", formats["header"])
     sheet.write("B1", project_name, formats["input"])
     headers = [
@@ -329,6 +333,7 @@ def _write_material_inspection_sheet(
         sheet.write(row_idx, 0, activity.get("activity_id"))
         for col_idx in range(1, len(headers)):
             sheet.write_blank(row_idx, col_idx, None, formats["input"])
+    _add_material_inspection_validations(sheet, max(len(activities), 1))
 
 
 def _write_schedule_sheet(
@@ -337,6 +342,7 @@ def _write_schedule_sheet(
     formats: dict[str, xlsxwriter.format.Format],
 ) -> None:
     sheet = workbook.add_worksheet(FIELD_WORKBOOK_SHEETS[3])
+    sheet.freeze_panes(1, 0)
     headers = ["activity_id", "name", "discipline", "zone", "start_date", "finish_date", "status"]
     _write_headers(sheet, headers, formats["header"])
     for row_idx, activity in enumerate(activities, start=1):
@@ -349,6 +355,7 @@ def _write_dashboard_sheet(
     formats: dict[str, xlsxwriter.format.Format],
 ) -> None:
     sheet = workbook.add_worksheet(FIELD_WORKBOOK_SHEETS[4])
+    sheet.set_column(0, 1, 24)
     sheet.write("A1", "현장소장 대시보드", formats["title"])
     rows = [
         ("현장명", project_name),
@@ -366,11 +373,13 @@ def _write_dashboard_sheet(
 
 def _write_delay_sheet(workbook: xlsxwriter.Workbook, formats: dict[str, xlsxwriter.format.Format]) -> None:
     sheet = workbook.add_worksheet(FIELD_WORKBOOK_SHEETS[5])
+    sheet.freeze_panes(1, 0)
     _write_headers(sheet, ["activity_id", "name", "reason", "owner", "risk"], formats["header"])
 
 
 def _write_report_sheet(workbook: xlsxwriter.Workbook, formats: dict[str, xlsxwriter.format.Format]) -> None:
     sheet = workbook.add_worksheet(FIELD_WORKBOOK_SHEETS[6])
+    sheet.freeze_panes(3, 0)
     sheet.write("A1", "주간 공정회의자료", formats["title"])
     _write_headers(sheet, ["section", "content"], formats["header"], row=2)
 
@@ -384,3 +393,30 @@ def _write_headers(
 ) -> None:
     for col_idx, header in enumerate(headers):
         sheet.write(row, col_idx, header, header_format)
+
+
+def _prepare_input_sheet(sheet: xlsxwriter.worksheet.Worksheet, last_col: int, activity_count: int) -> None:
+    last_row = max(activity_count + 2, 3)
+    sheet.freeze_panes(3, 0)
+    sheet.autofilter(2, 0, last_row, last_col)
+    sheet.set_landscape()
+    sheet.fit_to_pages(1, 0)
+    sheet.set_column(0, last_col, 18)
+    sheet.protect()
+
+
+def _add_daily_validations(sheet: xlsxwriter.worksheet.Worksheet, activity_count: int) -> None:
+    last_row = max(activity_count + 3, 200)
+    sheet.data_validation(3, 1, last_row, 1, {"validate": "date", "criteria": ">=", "value": "2020-01-01"})
+    sheet.data_validation(3, 2, last_row, 4, {"validate": "decimal", "criteria": ">=", "value": 0})
+
+
+def _add_material_inspection_validations(sheet: xlsxwriter.worksheet.Worksheet, activity_count: int) -> None:
+    last_row = max(activity_count + 3, 200)
+    sheet.data_validation(
+        3,
+        7,
+        last_row,
+        7,
+        {"validate": "list", "source": ["planned", "ordered", "pending", "delivered", "approved", "delayed"]},
+    )

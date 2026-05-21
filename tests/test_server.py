@@ -31,6 +31,7 @@ def test_build_server_registers_construction_v2_tools():
         "generate_weekly_report",
         "import_excel_input_to_db",
         "generate_weekly_report_from_db",
+        "list_change_log_tool",
         "summarize_site_status",
     }:
         assert tool_name in server._tool_manager._tools

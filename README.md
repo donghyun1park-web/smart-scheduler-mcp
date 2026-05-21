@@ -20,6 +20,19 @@ The v2.1 pass keeps the v2 SQLite and Excel loop intact and adds:
 - Recovery templates for equipment, inspection/approval, design change,
   subcontractor, and weather delay reasons.
 
+### v2.2 Field Stabilization
+
+The v2.2 pass hardens real field use:
+
+- `import_field_input_to_db(..., conflict_policy="fail|skip|replace", dry_run=True)`
+- Batch import validation before DB changes
+- Automatic backup before non-dry-run imports
+- `list_change_log_tool` MCP access
+- Real DB smoke-test script that works on a copied `.scheduler` file
+- Protected Excel templates with filters, freeze panes, unlocked input cells,
+  and validation dropdowns
+- Simple EVM metrics for dashboard and HQ reporting
+
 New v2.0 MVP entry points:
 
 ```powershell
@@ -34,6 +47,9 @@ New v2.0 MVP entry points:
 
 # Load dashboard-ready data directly from SQLite.
 .\.venv\Scripts\python.exe -c "from viewer.components.site_manager_dashboard import load_site_dashboard_data_from_db; print(load_site_dashboard_data_from_db('path\\to\\project.scheduler', project_id='project-1'))"
+
+# Smoke-test a real DB by copying it first.
+.\.venv\Scripts\python.exe scripts\smoke_test_real_scheduler.py --db path\to\real.scheduler --excel path\to\field_input.xlsx --out-dir smoke_outputs
 
 # Run the site-manager dashboard.
 .\.venv\Scripts\python.exe -m streamlit run viewer/pages/08_site_manager_dashboard.py
@@ -51,6 +67,7 @@ New MCP tools:
 - `generate_weekly_report`
 - `import_excel_input_to_db`
 - `generate_weekly_report_from_db`
+- `list_change_log_tool`
 - `summarize_site_status`
 
 `suggest_recovery` only returns draft/candidate/review-required language. It
@@ -60,8 +77,10 @@ See:
 
 - [AI Construction Scheduler v2 User Guide](docs/AI_CONSTRUCTION_SCHEDULER_V2_USER_GUIDE.md)
 - [AI Construction Scheduler v2 Data Model](docs/AI_CONSTRUCTION_SCHEDULER_V2_DATA_MODEL.md)
+- [Release Notes v0.2.2](docs/RELEASE_NOTES_v0.2.2.md)
 - [Release Notes v0.2.1](docs/RELEASE_NOTES_v0.2.1.md)
 - [Release Notes v0.2.0 MVP](docs/RELEASE_NOTES_v0.2.0-MVP.md)
+- [Real Scheduler DB Smoke Test](docs/SMOKE_TEST_REAL_SCHEDULER.md)
 
 ## v0.1 Scope
 

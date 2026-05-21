@@ -23,6 +23,8 @@ def test_load_site_dashboard_data_from_db_builds_required_sections(tmp_path):
     assert summary["serious_risk_count"] >= 1
     assert summary["material_delay_count"] == 1
     assert summary["inspection_delay_count"] == 1
+    assert summary["evm"]["status"] == "risk"
+    assert summary["evm"]["earned_value"] > 0
     assert dashboard["disciplines"][0]["discipline"] == "토목"
     assert dashboard["zones"][0]["zone"] == "B1"
     assert dashboard["delayed_top10"]

@@ -1,14 +1,22 @@
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 from core import db
+from core.backup import create_backup
+from core.cost import calculate_cost_execution_rate
 from core.excel_io import read_field_input
 from core.models import ChangeLogEntry, CostItem, DailyRecord, InspectionRecord, MaterialRecord
+from core.progress import calculate_quantity_progress
 from core.reporting import create_weekly_construction_report
+from core.validation import validate_cost_progress_gap, validate_progress_quantities
+
+
+CONFLICT_POLICIES = {"fail", "skip", "replace", "merge"}
 
 
 def import_field_input_to_db(
@@ -17,15 +25,99 @@ def import_field_input_to_db(
     *,
     project_id: str | None = None,
     imported_by: str | None = None,
+    conflict_policy: str = "fail",
+    dry_run: bool = False,
+    validate_before_commit: bool = True,
+    backup_before_import: bool = True,
+    actor: str = "system",
 ) -> dict[str, Any]:
     parsed = read_field_input(input_path)
     errors = list(parsed["errors"])
     warnings = list(parsed["warnings"])
+    if conflict_policy not in CONFLICT_POLICIES:
+        errors.append(f"Unsupported conflict_policy: {conflict_policy}")
+    if conflict_policy == "merge":
+        errors.append("conflict_policy='merge' is not implemented; use fail, skip, or replace.")
+    activities = {activity.activity_id: activity for activity in db.list_activities(db_path)}
+    if validate_before_commit:
+        validation = _validate_import_rows(parsed, activities)
+        errors.extend(validation["errors"])
+        warnings.extend(validation["warnings"])
+
+    conflicts = _detect_daily_conflicts(db_path, parsed["daily_records"])
+    if conflicts and conflict_policy == "fail":
+        errors.append(f"Duplicate daily records found for activity_id + work_date: {len(conflicts)} conflict(s).")
+
     if errors:
-        return _import_result(db_path, errors=errors, warnings=warnings)
+        return _import_result(
+            db_path,
+            errors=errors,
+            warnings=warnings,
+            conflicts=conflicts,
+            dry_run=dry_run,
+            project_id=project_id,
+        )
+
+    created = _empty_counters()
+    updated = _empty_counters()
+    skipped = _empty_counters()
+    if dry_run:
+        return _import_result(
+            db_path,
+            errors=errors,
+            warnings=warnings,
+            conflicts=conflicts,
+            dry_run=True,
+            project_id=project_id,
+            created=created,
+            updated=updated,
+            skipped=skipped,
+            changed=False,
+        )
+
+    backup_path: str | None = None
+    if backup_before_import:
+        try:
+            backup = create_backup(db_path, reason="before_import")
+            backup_path = str(backup.backup_path)
+        except (OSError, FileNotFoundError) as exc:
+            return _import_result(
+                db_path,
+                errors=[f"Backup before import failed: {exc}"],
+                warnings=warnings,
+                conflicts=conflicts,
+                dry_run=dry_run,
+                project_id=project_id,
+            )
 
     daily_count = 0
     for row in parsed["daily_records"]:
+        conflict_key = _daily_key(row)
+        if conflict_key in conflicts:
+            if conflict_policy == "skip":
+                skipped["daily_records"] += 1
+                continue
+            if conflict_policy == "replace":
+                existing_records = db.list_daily_records(
+                    db_path,
+                    activity_id=str(row["activity_id"]),
+                    work_date=str(row["work_date"]),
+                )
+                db.delete_daily_records(db_path, activity_id=str(row["activity_id"]), work_date=str(row["work_date"]))
+                db.log_change(
+                    db_path,
+                    ChangeLogEntry(
+                        change_id=_new_id("chg"),
+                        target_table="daily_records",
+                        target_id=f"{row['activity_id']}:{row['work_date']}",
+                        before_value=json.dumps([_record_dict(record) for record in existing_records], ensure_ascii=False),
+                        after_value=json.dumps(row, ensure_ascii=False, default=str),
+                        reason="excel_import_replace",
+                        user=actor or imported_by or "system",
+                        changed_at=date.today(),
+                    ),
+                )
+                updated["daily_records"] += 1
         db.create_daily_record(
             db_path,
             DailyRecord(
@@ -40,10 +132,16 @@ def import_field_input_to_db(
                 remarks=str(row.get("remarks") or ""),
             ),
         )
+        if conflict_key not in conflicts:
+            created["daily_records"] += 1
         daily_count += 1
 
     cost_count = 0
     for row in parsed["cost_items"]:
+        if db.list_cost_items(db_path, activity_id=str(row["activity_id"])):
+            updated["cost_items"] += 1
+        else:
+            created["cost_items"] += 1
         db.upsert_cost_item(
             db_path,
             CostItem(
@@ -59,6 +157,7 @@ def import_field_input_to_db(
 
     material_count = 0
     for row in parsed["materials"]:
+        created["materials"] += 1
         db.create_material_record(
             db_path,
             MaterialRecord(
@@ -74,6 +173,7 @@ def import_field_input_to_db(
 
     inspection_count = 0
     for row in parsed["inspections"]:
+        created["inspections"] += 1
         db.create_inspection_record(
             db_path,
             InspectionRecord(
@@ -96,10 +196,24 @@ def import_field_input_to_db(
             before_value="",
             after_value=f"daily={daily_count}, cost={cost_count}, materials={material_count}, inspections={inspection_count}",
             reason="excel_import",
-            user=imported_by or "codex",
+            user=actor or imported_by or "codex",
             changed_at=date.today(),
         ),
     )
+    if warnings:
+        db.log_change(
+            db_path,
+            ChangeLogEntry(
+                change_id=_new_id("chg"),
+                target_table="field_input",
+                target_id=str(input_path),
+                before_value="",
+                after_value=json.dumps(warnings, ensure_ascii=False),
+                reason="excel_import_warnings",
+                user=actor or imported_by or "codex",
+                changed_at=date.today(),
+            ),
+        )
     return _import_result(
         db_path,
         daily=daily_count,
@@ -108,6 +222,13 @@ def import_field_input_to_db(
         inspections=inspection_count,
         errors=errors,
         warnings=warnings,
+        conflicts=conflicts,
+        backup_path=backup_path,
+        dry_run=dry_run,
+        created=created,
+        updated=updated,
+        skipped=skipped,
+        changed=True,
         project_id=project_id,
     )
 
@@ -183,8 +304,16 @@ def _import_result(
     inspections: int = 0,
     errors: list[str] | None = None,
     warnings: list[str] | None = None,
+    conflicts: dict[tuple[str, str], dict[str, object]] | None = None,
+    backup_path: str | None = None,
+    dry_run: bool = False,
+    created: dict[str, int] | None = None,
+    updated: dict[str, int] | None = None,
+    skipped: dict[str, int] | None = None,
+    changed: bool = False,
     project_id: str | None = None,
 ) -> dict[str, Any]:
+    conflict_rows = list((conflicts or {}).values())
     return {
         "ok": not errors,
         "db_path": str(db_path),
@@ -195,6 +324,13 @@ def _import_result(
         "inspections_inserted": inspections,
         "errors": errors or [],
         "warnings": warnings or [],
+        "conflicts": conflict_rows,
+        "backup_path": backup_path,
+        "dry_run": dry_run,
+        "created": created or _empty_counters(),
+        "updated": updated or _empty_counters(),
+        "skipped": skipped or _empty_counters(),
+        "changed": changed,
     }
 
 
@@ -237,3 +373,79 @@ def _optional_date(value: object) -> date | None:
 
 def _new_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:12]}"
+
+
+def _validate_import_rows(parsed: dict[str, Any], activities: dict[str, Any]) -> dict[str, list[str]]:
+    errors: list[str] = []
+    warnings: list[str] = []
+    progress_by_activity: dict[str, tuple[float, float]] = {}
+    for idx, row in enumerate(parsed["daily_records"], start=1):
+        activity_id = str(row.get("activity_id") or "").strip()
+        if not activity_id:
+            errors.append(f"01_실적입력 row {idx} activity_id is required.")
+            continue
+        activity = activities.get(activity_id)
+        if activity is None:
+            errors.append(f"01_실적입력 row {idx} unknown activity_id: {activity_id}.")
+            continue
+        planned_qty = float(row.get("planned_qty") or 0.0)
+        actual_qty = float(row.get("actual_qty") or 0.0)
+        if planned_qty < 0:
+            errors.append(f"{activity.name} ({activity_id}) planned_qty must be >= 0, got {planned_qty}.")
+        if actual_qty < 0:
+            errors.append(f"{activity.name} ({activity_id}) actual_qty must be >= 0, got {actual_qty}.")
+        errors.extend(validate_progress_quantities(activity_id, activity.name, planned_qty, actual_qty))
+        planned_total, actual_total = progress_by_activity.get(activity_id, (0.0, 0.0))
+        progress_by_activity[activity_id] = (planned_total + planned_qty, actual_total + actual_qty)
+
+    for idx, row in enumerate(parsed["cost_items"], start=1):
+        activity_id = str(row.get("activity_id") or "").strip()
+        activity = activities.get(activity_id)
+        if activity is None:
+            errors.append(f"02_원가입력 row {idx} unknown activity_id: {activity_id}.")
+            continue
+        execution_budget = float(row.get("execution_budget") or 0.0)
+        invested_cost = float(row.get("invested_cost") or 0.0)
+        progress_qty = progress_by_activity.get(activity_id, (0.0, 0.0))
+        progress_pct = calculate_quantity_progress(progress_qty[0], progress_qty[1])
+        cost_execution_rate = calculate_cost_execution_rate(execution_budget, invested_cost)
+        warnings.extend(
+            validate_cost_progress_gap(
+                activity_id,
+                activity.name,
+                progress_pct=progress_pct,
+                cost_execution_rate=cost_execution_rate,
+            )
+        )
+
+    for sheet_name, rows in (("03_자재", parsed["materials"]), ("03_검측", parsed["inspections"])):
+        for idx, row in enumerate(rows, start=1):
+            activity_id = str(row.get("activity_id") or "").strip()
+            if activity_id not in activities:
+                errors.append(f"{sheet_name} row {idx} unknown activity_id: {activity_id}.")
+    return {"errors": errors, "warnings": warnings}
+
+
+def _detect_daily_conflicts(db_path: str | Path, rows: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, object]]:
+    conflicts: dict[tuple[str, str], dict[str, object]] = {}
+    for row in rows:
+        activity_id, work_date = _daily_key(row)
+        if not activity_id or not work_date:
+            continue
+        existing = db.list_daily_records(db_path, activity_id=activity_id, work_date=work_date)
+        if existing:
+            conflicts[(activity_id, work_date)] = {
+                "activity_id": activity_id,
+                "work_date": work_date,
+                "existing_count": len(existing),
+                "policy_scope": "daily_records",
+            }
+    return conflicts
+
+
+def _daily_key(row: dict[str, Any]) -> tuple[str, str]:
+    return str(row.get("activity_id") or "").strip(), str(row.get("work_date") or "").strip()
+
+
+def _empty_counters() -> dict[str, int]:
+    return {"daily_records": 0, "cost_items": 0, "materials": 0, "inspections": 0}

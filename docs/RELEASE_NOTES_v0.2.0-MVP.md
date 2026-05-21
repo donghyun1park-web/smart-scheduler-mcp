@@ -58,3 +58,7 @@ See `CHECKPOINT_LOG.md` for exact results by phase.
 See `docs/RELEASE_NOTES_v0.2.1.md` for the follow-up pass that adds DB-backed
 dashboard loading, audience-specific report prose, shared number utilities, and
 expanded recovery templates.
+
+See `docs/RELEASE_NOTES_v0.2.2.md` for field-deployment stabilization:
+conflict-safe import, dry-run validation, import pre-backup, change-log MCP,
+real DB smoke testing, protected Excel templates, and simple EVM.

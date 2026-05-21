@@ -8,6 +8,8 @@ from typing import Any, Mapping
 from core import db
 from core.cost import calculate_billing_rate, calculate_cost_execution_rate
 from core.delay_detection import generate_delay_report
+from core.evm import calculate_evm_totals
+from core.importer import generate_weekly_report_from_db
 from core.models import Project
 from core.number_utils import to_float
 from core.progress import calculate_weighted_progress
@@ -70,6 +72,7 @@ def build_site_manager_dashboard_summary(
         "delayed_activity_count": len({issue.get("activity_id") for issue in delay_issues}),
         "risk_discipline": risk_discipline,
         "key_risks": key_risks,
+        "evm": calculate_evm_totals([dict(activity) for activity in activities]),
         "status": _status_from_variance(variance, threshold_values),
         "thresholds": threshold_values,
     }
@@ -117,6 +120,7 @@ def load_site_dashboard_data_from_db(
         "serious_risk_count": serious_risk_count,
         "material_delay_count": material_delay_count,
         "inspection_delay_count": inspection_delay_count,
+        "evm": summary["evm"],
         "status": summary["status"],
         "risk_discipline": summary["risk_discipline"],
         "key_risks": summary["key_risks"],
@@ -133,6 +137,21 @@ def load_site_dashboard_data_from_db(
         "inspections": inspections,
         "activities": activities,
     }
+
+
+def build_dashboard_report_file(
+    db_path: str | Path,
+    out_dir: str | Path,
+    *,
+    project_id: str | None = None,
+    report_style: str = "internal",
+) -> dict[str, object]:
+    output_dir = Path(out_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    suffix = f"_{project_id}" if project_id else ""
+    output_path = output_dir / f"dashboard_report{suffix}_{report_style}.xlsx"
+    result = generate_weekly_report_from_db(db_path, output_path, report_style=report_style)
+    return {**result, "report_style": report_style}
 
 
 def render_site_manager_dashboard(summary: Mapping[str, Any]) -> None:

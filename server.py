@@ -10,6 +10,7 @@ from tools.construction_tools import (
     generate_weekly_report_from_db,
     input_daily_record,
     import_excel_input_to_db,
+    list_change_log_tool,
     suggest_recovery,
     summarize_site_status,
 )
@@ -38,6 +39,7 @@ def build_server() -> FastMCP:
     mcp.tool()(generate_weekly_report)
     mcp.tool()(import_excel_input_to_db)
     mcp.tool()(generate_weekly_report_from_db)
+    mcp.tool()(list_change_log_tool)
     mcp.tool()(summarize_site_status)
     return mcp
 

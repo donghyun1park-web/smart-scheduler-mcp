@@ -38,6 +38,23 @@ def test_template_marks_input_and_auto_cells_with_distinct_fills(tmp_path):
     assert auto_cell.fill.fgColor.rgb == "FFD9EAD3"
 
 
+def test_template_has_field_use_protection_and_validation(tmp_path):
+    output = tmp_path / "field_template.xlsx"
+    create_field_input_template(output, project_name="Demo Site", activities=[{"activity_id": "A-100"}])
+
+    workbook = load_workbook(output)
+    daily = workbook["01_실적입력"]
+    material_inspection = workbook["03_자재검측"]
+
+    assert daily.freeze_panes == "A4"
+    assert daily.auto_filter.ref == "A3:H4"
+    assert daily.protection.sheet is True
+    assert daily["B4"].protection.locked is False
+    assert daily["A4"].protection.locked is True
+    assert len(daily.data_validations.dataValidation) >= 1
+    assert len(material_inspection.data_validations.dataValidation) >= 1
+
+
 def test_read_field_input_round_trips_template_rows(tmp_path):
     output = tmp_path / "현장입력.xlsx"
     create_field_input_template(

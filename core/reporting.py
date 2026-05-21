@@ -16,6 +16,7 @@ from core.cost import (
     detect_cost_overrun,
 )
 from core.delay_detection import generate_delay_report
+from core.evm import calculate_evm_snapshot, calculate_evm_totals
 from core.models import Activity, Relationship, WBS
 from core.number_utils import to_float
 from core.progress import calculate_quantity_progress, calculate_weighted_progress
@@ -208,6 +209,12 @@ def _cost_rows(activities: list[dict[str, object]]) -> list[dict[str, object]]:
         progress_pct = to_float(activity.get("actual_progress_pct"))
         cost_rate = calculate_cost_execution_rate(execution_budget, invested_cost)
         billing_rate = calculate_billing_rate(contract_amount, billing_amount)
+        evm = calculate_evm_snapshot(
+            execution_budget=execution_budget,
+            planned_progress_pct=activity.get("planned_progress_pct"),
+            actual_progress_pct=progress_pct,
+            actual_cost=invested_cost,
+        )
         rows.append(
             {
                 "activity_id": activity.get("activity_id"),
@@ -219,6 +226,7 @@ def _cost_rows(activities: list[dict[str, object]]) -> list[dict[str, object]]:
                 "contract_amount": contract_amount,
                 "billing_amount": billing_amount,
                 "billing_rate": billing_rate,
+                **evm,
                 "overrun": detect_cost_overrun(progress_pct, cost_rate),
             }
         )
@@ -342,6 +350,11 @@ def _write_cost_status(
         "invested_cost",
         "cost_execution_rate",
         "billing_rate",
+        "planned_value",
+        "earned_value",
+        "actual_cost",
+        "spi",
+        "cpi",
         "overrun",
     ]
     _write_headers(sheet, headers, header_format)
@@ -457,6 +470,7 @@ def _report_site_data(
         "cost_execution_rate": cost_execution,
         "billing_rate": billing_rate,
         "delayed_count": len(delay_rows),
+        "evm": calculate_evm_totals(cost_rows),
     }
     return {**site_data, "project": project, "summary": summary}
 
