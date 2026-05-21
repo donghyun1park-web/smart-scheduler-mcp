@@ -35,3 +35,15 @@ def test_build_server_registers_construction_v2_tools():
         "summarize_site_status",
     }:
         assert tool_name in server._tool_manager._tools
+
+
+def test_build_server_registers_v2_5_operations_center_tools():
+    server = build_server()
+
+    for tool_name in {
+        "check_data_health",
+        "suggest_next_actions",
+        "explain_evm_from_db",
+        "get_workflow_status",
+    }:
+        assert tool_name in server._tool_manager._tools

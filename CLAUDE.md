@@ -15,12 +15,16 @@ pytest                                          # 전체 테스트 (실행예산
 ## Architecture
 
 ```
-server.py              ← MCP 서버 진입점 (40 tools)
+server.py              ← MCP 서버 진입점 (44 tools)
 core/                  ← 비즈니스 로직
   db.py                  SQLite .scheduler 파일 (SCHEMA_VERSION=2)
   models.py              dataclass: Project, Activity, CostItem, etc.
   billing.py             기성고 산출/S-curve
   dashboard.py           현장 대시보드/브리핑
+  data_health.py         읽기 전용 데이터 건강점수/오류 진단
+  next_actions.py        사용자 역할별 다음 행동 추천
+  evm_explain.py         EVM 지표 한국어 쉬운 설명
+  workflows.py           일일마감/주간보고 사전점검 상태
   budget_importer.py     실행예산 Excel → DB (Type A/B 자동감지)
   schedule_importer.py   공정표 바차트 Excel → DB
   relationship_inference.py  Activity 간 관계 자동추론
@@ -33,6 +37,9 @@ tools/                 ← MCP tool 래퍼 (server.py에서 등록)
   import_tools.py        Excel 임포트 3개 도구
   relationship_tools.py  관계추론 2개 도구
   construction_tools.py  일보/지연/만회/주간보고 7개 도구
+  diagnostic_tools.py    운영센터/진단 4개 도구
+viewer/
+  pages/00_operations_center.py  Streamlit 운영센터 홈
 tests/                 ← pytest (200+ tests)
 scripts/
   create_sample_db.py   샘플 .scheduler DB 생성 (실제 Excel 필요)
@@ -40,11 +47,12 @@ scripts/
 
 ## Current State (2026-05-21)
 
-- **Branch**: `feature/v2.4-billing-dashboard-materials`
+- **Branch**: `feature/v2.5-operations-center`
+- **Local work**: v2.5 운영센터/진단 도구 구현 중
 - **PR**: #9 (OPEN) — v2.4 기성/대시보드/자재 도구
 - **PR**: #8 (OPEN) — v2.3 Excel 임포터/EVM/관계추론
 - **Main**: v2.2 merged (PR #7)
-- **Quality**: ruff OK, mypy OK, 200 tests passed
+- **Quality**: pytest 235 passed, ruff OK, mypy OK
 
 ### Version History
 
@@ -53,8 +61,9 @@ scripts/
 | v2.2 | main | #7 merged | complete | Field import hardening |
 | v2.3 | feature/v2.3-importers | #8 open | review | Excel importers, EVM, relationships |
 | v2.4 | feature/v2.4-billing-dashboard-materials | #9 open | review | Billing, dashboard, materials |
+| v2.5 | feature/v2.5-operations-center | not opened | local ready | Operations Center, data health, next actions |
 
-### MCP Tools (40 total)
+### MCP Tools (44 total)
 
 **Project**: list_projects, load_project, create_project
 **Import**: import_excel, import_schedule_excel, import_budget_excel
@@ -64,7 +73,17 @@ scripts/
 **Dashboard**: get_site_briefing, get_dashboard_report, get_discipline_progress, get_delayed_activities
 **Materials**: add_material, list_materials_tool, update_material, add_inspection, list_inspections_tool, update_inspection, get_activity_logistics
 **Construction**: input_daily_record, detect_delays, suggest_recovery, generate_weekly_report, import_excel_input_to_db, generate_weekly_report_from_db, list_change_log_tool, summarize_site_status
+**Operations**: check_data_health, suggest_next_actions, explain_evm_from_db, get_workflow_status
 **Other**: apply_sequences, generate_report, calibrate_completion_date, run_field_uat_workflow
+
+### AI Usage Guide
+
+- 운영자는 먼저 `check_data_health`로 데이터 건강점수와 오류 원인을 확인한다.
+- 다음 행동은 `suggest_next_actions`로 역할별 후보를 받되, 적용 전 사람이 검토한다.
+- 본사용 설명은 `explain_evm_from_db`를 사용해 PV/EV/AC, SPI/CPI를 쉬운 한국어로 요약한다.
+- 일일마감과 주간보고 전에는 `get_workflow_status`로 필수 단계와 경고를 확인한다.
+- 만회대책/다음 행동 문구는 초안, 후보, 검토 필요 표현을 사용하며 최종 판단은 현장 책임자가 한다.
+- 자세한 1페이지 운영 가이드는 `docs/AI_USAGE_GUIDE_v2_5_OPERATIONS_CENTER.md`를 본다.
 
 ## Conventions
 

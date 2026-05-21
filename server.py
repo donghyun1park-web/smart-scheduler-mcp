@@ -16,6 +16,12 @@ from tools.construction_tools import (
 )
 from tools.billing_tools import apply_billing, billing_s_curve, billing_summary, calculate_billing
 from tools.cost_tools import analyze_evm_from_db, get_evm_s_curve_data, summarize_cost_by_discipline
+from tools.diagnostic_tools import (
+    check_data_health,
+    explain_evm_from_db,
+    get_workflow_status,
+    suggest_next_actions,
+)
 from tools.dashboard_tools import (
     get_dashboard_report,
     get_delayed_activities,
@@ -84,6 +90,11 @@ def build_server() -> FastMCP:
     mcp.tool()(list_inspections_tool)
     mcp.tool()(update_inspection)
     mcp.tool()(get_activity_logistics)
+    # v2.5: Operations center diagnostics
+    mcp.tool()(check_data_health)
+    mcp.tool()(suggest_next_actions)
+    mcp.tool()(explain_evm_from_db)
+    mcp.tool()(get_workflow_status)
     return mcp
 
 
