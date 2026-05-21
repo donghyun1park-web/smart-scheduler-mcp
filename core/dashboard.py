@@ -17,6 +17,7 @@ from core import db
 from core.billing import get_billing_summary
 from core.models import Activity
 from core.number_utils import percentage
+from core.progress import get_today_schedule_summary
 from core.recovery import suggest_recovery_plans
 
 
@@ -85,6 +86,9 @@ def generate_site_briefing(
         status = "부진"
         status_emoji = "red"
 
+    # Today's schedule (planned starts/finishes + overdue starts)
+    today_schedule = get_today_schedule_summary(db_path, as_of=today)
+
     # One-liner
     project_name = getattr(project, "name", "프로젝트") if project else "프로젝트"
     briefing = (
@@ -92,7 +96,11 @@ def generate_site_briefing(
         f"계획 {overall_planned:.1f}% / 실적 {overall_actual:.1f}% "
         f"(차이 {gap:+.1f}%p), "
         f"기성률 {billing_rate:.1f}%, "
-        f"부진공정 {len(delayed_activities)}건"
+        f"부진공정 {len(delayed_activities)}건, "
+        f"오늘 착수 {today_schedule['starts_today_count']}건 / "
+        f"완료 예정 {today_schedule['finishes_today_count']}건"
+        + (f", 미착수 지연 {today_schedule['overdue_start_count']}건"
+           if today_schedule['overdue_start_count'] else "")
     )
 
     return {
@@ -107,6 +115,7 @@ def generate_site_briefing(
         "billing_rate_pct": billing_rate,
         "activity_count": len(activities),
         "delayed_count": len(delayed_activities),
+        "today_schedule": today_schedule,
         "briefing": briefing,
     }
 
