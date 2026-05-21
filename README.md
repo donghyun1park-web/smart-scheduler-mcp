@@ -4,6 +4,46 @@ Python-based MEP schedule assistant MVP for SQLite-backed schedule storage,
 CPM calculation, MCP tools, a Streamlit viewer, Plotly visualizations, and
 Excel reporting.
 
+## AI Construction Schedule v2.0 MVP
+
+This branch extends the v0.1 scheduler into an Excel-centered construction
+schedule MVP while preserving the existing CPM, SQLite, MCP, Streamlit, Plotly,
+and v0.1 Excel report behavior.
+
+New v2.0 MVP entry points:
+
+```powershell
+# Create a field input workbook template.
+.\.venv\Scripts\python.exe -c "from core.excel_io import create_field_input_template; print(create_field_input_template('samples\\field_input_template.xlsx', project_name='Demo Site'))"
+
+# Generate a weekly construction report from the sample site data.
+.\.venv\Scripts\python.exe -c "import json; from core.reporting import create_weekly_construction_report; data=json.load(open('samples\\ai_construction_site_sample.json', encoding='utf-8')); print(create_weekly_construction_report(data, 'samples\\ai_construction_weekly_report.xlsx'))"
+
+# Run the site-manager dashboard.
+.\.venv\Scripts\python.exe -m streamlit run viewer/pages/08_site_manager_dashboard.py
+```
+
+The sample data at `samples/ai_construction_site_sample.json` includes normal
+work, delayed work, predecessor blocking, cost overrun, material delay,
+inspection delay, missing owner, and baseline-change scenarios.
+
+New MCP tools:
+
+- `input_daily_record`
+- `detect_delays`
+- `suggest_recovery`
+- `generate_weekly_report`
+- `summarize_site_status`
+
+`suggest_recovery` only returns draft/candidate/review-required language. It
+does not confirm or order a recovery action.
+
+See:
+
+- [AI Construction Scheduler v2 User Guide](docs/AI_CONSTRUCTION_SCHEDULER_V2_USER_GUIDE.md)
+- [AI Construction Scheduler v2 Data Model](docs/AI_CONSTRUCTION_SCHEDULER_V2_DATA_MODEL.md)
+- [Release Notes v0.2.0 MVP](docs/RELEASE_NOTES_v0.2.0-MVP.md)
+
 ## v0.1 Scope
 
 - Core dataclasses and SQLite `.scheduler` project storage

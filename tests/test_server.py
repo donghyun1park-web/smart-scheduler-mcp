@@ -19,3 +19,16 @@ def test_build_server_registers_field_uat_tool():
     server = build_server()
 
     assert "run_field_uat_workflow" in server._tool_manager._tools
+
+
+def test_build_server_registers_construction_v2_tools():
+    server = build_server()
+
+    for tool_name in {
+        "input_daily_record",
+        "detect_delays",
+        "suggest_recovery",
+        "generate_weekly_report",
+        "summarize_site_status",
+    }:
+        assert tool_name in server._tool_manager._tools

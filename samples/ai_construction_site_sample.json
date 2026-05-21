@@ -1,0 +1,144 @@
+{
+  "project": {
+    "project_id": "demo-ai-construction-v2",
+    "name": "AI Construction MVP Demo Site",
+    "report_week": "2026-05-18",
+    "planned_progress_pct": 62.0
+  },
+  "activities": [
+    {
+      "activity_id": "A-100",
+      "name": "Normal concrete curing",
+      "discipline": "architecture",
+      "zone": "1F",
+      "planned_qty": 100,
+      "actual_qty": 100,
+      "planned_progress_pct": 100,
+      "actual_progress_pct": 100,
+      "weight": 1000,
+      "finish_date": "2026-05-25",
+      "status": "completed",
+      "owner": "Kim",
+      "this_week_actual": "Completed curing inspection",
+      "next_week_plan": "Release support material",
+      "start_date": "2026-05-11"
+    },
+    {
+      "activity_id": "A-200",
+      "name": "Delayed rebar assembly",
+      "discipline": "civil",
+      "zone": "B1",
+      "planned_qty": 100,
+      "actual_qty": 55,
+      "planned_progress_pct": 80,
+      "actual_progress_pct": 55,
+      "weight": 1200,
+      "finish_date": "2026-05-14",
+      "status": "in_progress",
+      "owner": "Lee",
+      "this_week_actual": "Rebar assembly reached 55%",
+      "next_week_plan": "Add crew and close remaining section",
+      "start_date": "2026-05-06"
+    },
+    {
+      "activity_id": "A-210",
+      "name": "Concrete pour blocked by predecessor",
+      "discipline": "civil",
+      "zone": "B1",
+      "planned_qty": 100,
+      "actual_qty": 0,
+      "planned_progress_pct": 30,
+      "actual_progress_pct": 0,
+      "weight": 1500,
+      "finish_date": "2026-05-22",
+      "status": "ready",
+      "owner": "Park",
+      "this_week_actual": "Waiting for predecessor completion",
+      "next_week_plan": "Start pour after rebar inspection",
+      "start_date": "2026-05-19",
+      "predecessors": [
+        {"activity_id": "A-200", "name": "Delayed rebar assembly", "status": "in_progress"}
+      ]
+    },
+    {
+      "activity_id": "A-300",
+      "name": "MEP ceiling framing cost overrun",
+      "discipline": "mechanical",
+      "zone": "2F",
+      "planned_qty": 100,
+      "actual_qty": 45,
+      "planned_progress_pct": 60,
+      "actual_progress_pct": 45,
+      "weight": 2000,
+      "execution_budget": 1000,
+      "invested_cost": 720,
+      "contract_amount": 1300,
+      "billing_amount": 500,
+      "finish_date": "2026-05-20",
+      "status": "in_progress",
+      "owner": "Choi",
+      "this_week_actual": "Framing progressed with extra labor",
+      "next_week_plan": "Review crew productivity",
+      "start_date": "2026-05-12"
+    },
+    {
+      "activity_id": "A-400",
+      "name": "Fire pump delivery delay",
+      "discipline": "fire_protection",
+      "zone": "Machine Room",
+      "planned_qty": 1,
+      "actual_qty": 0,
+      "planned_progress_pct": 40,
+      "actual_progress_pct": 0,
+      "weight": 900,
+      "finish_date": "2026-05-21",
+      "status": "in_progress",
+      "owner": "Jung",
+      "this_week_actual": "Pump not delivered",
+      "next_week_plan": "Confirm delivery and prepare base",
+      "start_date": "2026-05-10",
+      "materials": [
+        {
+          "material_name": "fire pump",
+          "expected_date": "2026-05-15",
+          "actual_date": null,
+          "status": "ordered"
+        }
+      ]
+    },
+    {
+      "activity_id": "A-500",
+      "name": "Electrical panel inspection delay",
+      "discipline": "electrical",
+      "zone": "EPS",
+      "planned_qty": 10,
+      "actual_qty": 4,
+      "planned_progress_pct": 70,
+      "actual_progress_pct": 40,
+      "weight": 1100,
+      "finish_date": "2026-05-17",
+      "status": "in_progress",
+      "owner": "",
+      "this_week_actual": "Panel installation partially complete",
+      "next_week_plan": "Complete inspection and energization prep",
+      "start_date": "2026-05-08",
+      "inspections": [
+        {
+          "inspection_type": "panel approval",
+          "planned_date": "2026-05-14",
+          "actual_date": null,
+          "status": "pending"
+        }
+      ]
+    }
+  ],
+  "baseline_changes": [
+    {
+      "baseline_id": "BL-002",
+      "activity_id": "A-210",
+      "changed_at": "2026-05-20",
+      "reason": "Field sequence adjustment",
+      "approved_by": ""
+    }
+  ]
+}

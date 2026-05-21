@@ -83,10 +83,107 @@ def initialize_database(path: str | Path) -> None:
                 FOREIGN KEY (pred_id) REFERENCES activities(activity_id),
                 FOREIGN KEY (succ_id) REFERENCES activities(activity_id)
             );
+            CREATE TABLE IF NOT EXISTS daily_records (
+                record_id TEXT PRIMARY KEY,
+                activity_id TEXT NOT NULL,
+                work_date TEXT NOT NULL,
+                planned_qty REAL NOT NULL DEFAULT 0,
+                actual_qty REAL NOT NULL DEFAULT 0,
+                workers INTEGER NOT NULL DEFAULT 0,
+                equipment TEXT NOT NULL DEFAULT '',
+                owner TEXT NOT NULL DEFAULT '',
+                remarks TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (activity_id) REFERENCES activities(activity_id)
+            );
+            CREATE TABLE IF NOT EXISTS cost_items (
+                cost_item_id TEXT PRIMARY KEY,
+                activity_id TEXT NOT NULL,
+                contract_amount REAL NOT NULL DEFAULT 0,
+                execution_budget REAL NOT NULL DEFAULT 0,
+                invested_cost REAL NOT NULL DEFAULT 0,
+                billing_amount REAL NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (activity_id) REFERENCES activities(activity_id)
+            );
+            CREATE TABLE IF NOT EXISTS baseline_snapshots (
+                snapshot_id TEXT PRIMARY KEY,
+                baseline_id TEXT NOT NULL,
+                activity_id TEXT NOT NULL,
+                start_date TEXT,
+                finish_date TEXT,
+                duration INTEGER NOT NULL DEFAULT 0,
+                revision TEXT NOT NULL,
+                approved_by TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (activity_id) REFERENCES activities(activity_id)
+            );
+            CREATE TABLE IF NOT EXISTS materials (
+                material_id TEXT PRIMARY KEY,
+                activity_id TEXT NOT NULL,
+                material_name TEXT NOT NULL,
+                order_date TEXT,
+                expected_date TEXT,
+                actual_date TEXT,
+                status TEXT NOT NULL DEFAULT 'planned',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (activity_id) REFERENCES activities(activity_id)
+            );
+            CREATE TABLE IF NOT EXISTS inspections (
+                inspection_id TEXT PRIMARY KEY,
+                activity_id TEXT NOT NULL,
+                inspection_type TEXT NOT NULL,
+                planned_date TEXT,
+                actual_date TEXT,
+                status TEXT NOT NULL DEFAULT 'planned',
+                approver TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (activity_id) REFERENCES activities(activity_id)
+            );
+            CREATE TABLE IF NOT EXISTS change_log (
+                change_id TEXT PRIMARY KEY,
+                target_table TEXT NOT NULL,
+                target_id TEXT NOT NULL,
+                before_value TEXT NOT NULL DEFAULT '',
+                after_value TEXT NOT NULL DEFAULT '',
+                reason TEXT NOT NULL DEFAULT '',
+                user TEXT NOT NULL DEFAULT '',
+                approved_by TEXT NOT NULL DEFAULT '',
+                changed_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS project_settings (
+                settings_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                disciplines TEXT NOT NULL DEFAULT '[]',
+                thresholds TEXT NOT NULL DEFAULT '{}',
+                report_style TEXT NOT NULL DEFAULT 'weekly_meeting',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (project_id) REFERENCES projects(project_id)
+            );
             CREATE INDEX IF NOT EXISTS idx_activities_wbs_id ON activities(wbs_id);
             CREATE INDEX IF NOT EXISTS idx_activities_discipline ON activities(discipline);
             CREATE INDEX IF NOT EXISTS idx_relationships_pred_id ON relationships(pred_id);
             CREATE INDEX IF NOT EXISTS idx_relationships_succ_id ON relationships(succ_id);
+            CREATE INDEX IF NOT EXISTS idx_daily_records_activity_date
+                ON daily_records(activity_id, work_date);
+            CREATE INDEX IF NOT EXISTS idx_cost_items_activity_id
+                ON cost_items(activity_id);
+            CREATE INDEX IF NOT EXISTS idx_baseline_snapshots_baseline_id
+                ON baseline_snapshots(baseline_id);
+            CREATE INDEX IF NOT EXISTS idx_materials_activity_status
+                ON materials(activity_id, status);
+            CREATE INDEX IF NOT EXISTS idx_inspections_activity_status
+                ON inspections(activity_id, status);
+            CREATE INDEX IF NOT EXISTS idx_change_log_target
+                ON change_log(target_table, target_id);
             """
         )
         existing = conn.execute("SELECT COUNT(*) FROM schema_version").fetchone()[0]
@@ -339,6 +436,18 @@ def list_indexes(path: str | Path) -> set[str]:
     with _connect(path) as conn:
         rows = conn.execute("SELECT name FROM sqlite_master WHERE type = 'index'").fetchall()
     return {row["name"] for row in rows}
+
+
+def list_tables(path: str | Path) -> set[str]:
+    with _connect(path) as conn:
+        rows = conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+    return {row["name"] for row in rows}
+
+
+def list_table_columns(path: str | Path, table_name: str) -> list[str]:
+    with _connect(path) as conn:
+        rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return [row["name"] for row in rows]
 
 
 def update_cpm_results(path: str | Path, results: list[ActivityCpmResult]) -> None:

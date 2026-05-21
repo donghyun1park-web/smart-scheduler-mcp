@@ -1,0 +1,372 @@
+# CHECKPOINT_LOG
+
+## Phase 0 - Baseline And Work Rules
+
+Date: 2026-05-21
+
+### Changed Files
+
+- `AGENTS.md`
+- `PLAN.md`
+- `CHECKPOINT_LOG.md`
+- `core/calendar_utils.py`
+
+### Implemented
+
+- Read the UTF-8 development plan from
+  `C:\Users\User\Downloads\AI건축공정표_프로그램_개발계획서.md`.
+- Created branch `feature/ai-construction-scheduler-v2`.
+- Documented AI Construction Schedule v2.0 MVP rules while preserving the
+  Python 3.11/3.12 acceptance gate.
+- Added a phase-by-phase implementation plan that keeps CPM, SQLite, MCP,
+  Streamlit, Plotly, and existing Excel reporting intact.
+- Fixed a baseline `mypy` failure in the Korean holiday cache by typing cached
+  holidays as `set[date]`.
+
+### Commands Run
+
+```powershell
+git status --short --branch
+git branch --show-current
+git switch -c feature/ai-construction-scheduler-v2
+Get-Content -Raw -Encoding UTF8 C:\Users\User\Downloads\AI건축공정표_프로그램_개발계획서.md
+.\.venv\Scripts\python.exe --version
+py -0p
+.\.venv\Scripts\python.exe -m pip check
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m mypy .
+```
+
+### Test And Environment Result
+
+- Initial sandboxed `.\.venv\Scripts\python.exe --version`: failed because the
+  sandbox could not access the AppData-hosted base interpreter.
+- Escalated `.\.venv\Scripts\python.exe --version`: `Python 3.12.10`.
+- Escalated `py -0p`: Python 3.12 and 3.11 are available alongside 3.14 and
+  2.7.
+- `.\.venv\Scripts\python.exe -m pip check`: `No broken requirements found.`
+- `.\.venv\Scripts\python.exe -m pytest -q`: `78 passed`.
+- `.\.venv\Scripts\python.exe -m ruff check .`: `All checks passed!`
+- `.\.venv\Scripts\python.exe -m mypy .`: `Success: no issues found in 75 source files`.
+
+### Failures And Fixes
+
+- Initial sandboxed venv check reported
+  `No Python at '"C:\Users\User\AppData\Local\Programs\Python\Python312\python.exe'`.
+  Escalated verification showed the interpreter is available and `.venv` is
+  valid.
+- First `mypy` run failed at `core/calendar_utils.py:98` with
+  `Unsupported right operand type for in ("object")`.
+- Fixed by changing the Korean holiday cache from `dict[int, object]` to
+  `dict[int, set[date]]` and storing a concrete `set(...)` of holiday dates.
+
+### Remaining Risks
+
+- The current repository contains Korean display mojibake in some older strings;
+  avoid broad encoding rewrites unless a focused test requires it.
+- Any future recovery-suggestion text must be checked for final-decision wording
+  before release.
+- Phase 1 should begin with failing tests for the new schema and calculation
+  modules before production code is added.
+
+## Phase 1 - Data Model And Core Engines
+
+Date: 2026-05-21
+
+### Changed Files
+
+- `core/models.py`
+- `core/db.py`
+- `core/progress.py`
+- `core/cost.py`
+- `core/delay_detection.py`
+- `core/recovery.py`
+- `core/backup.py`
+- `core/validation.py`
+- `tests/test_db_v2_schema.py`
+- `tests/test_progress.py`
+- `tests/test_cost.py`
+- `tests/test_delay_detection.py`
+- `tests/test_recovery.py`
+- `tests/test_backup.py`
+- `tests/test_validation_v2.py`
+- `PLAN.md`
+- `CHECKPOINT_LOG.md`
+
+### Implemented
+
+- Added separate v2 schema tables for `daily_records`, `cost_items`,
+  `baseline_snapshots`, `materials`, `inspections`, `change_log`, and
+  `project_settings`.
+- Kept the `activities` table focused and verified it has fewer than 30 columns
+  with no daily-progress, cost-execution, or material-status fields added.
+- Added focused dataclasses for daily records, cost items, baselines, material
+  records, inspections, change log entries, and project settings.
+- Implemented quantity, weighted, milestone, discipline, and zone progress
+  calculations.
+- Implemented cost execution rate, billing rate, cost-overrun detection, and
+  forecast completion cost calculation.
+- Implemented schedule-delay, overdue, predecessor-block, material-delay,
+  inspection-delay, and manpower-shortage detection.
+- Implemented recovery-plan candidates with draft/review-required wording only.
+- Implemented backup creation, backup rotation, and restore helpers.
+- Extended validation with specific messages for date reversal, quantity/progress
+  issues, cost-progress gaps, missing owners, and missing change approvals.
+
+### Commands Run
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_db_v2_schema.py tests\test_progress.py tests\test_cost.py tests\test_delay_detection.py tests\test_recovery.py tests\test_backup.py tests\test_validation_v2.py -q
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m mypy .
+```
+
+### Test Result
+
+- New Phase 1 test bundle before implementation: failed as expected with missing
+  `core.progress`, `core.cost`, `core.delay_detection`, `core.recovery`,
+  `core.backup`, and validation extension imports.
+- New Phase 1 test bundle after implementation: `20 passed`.
+- Full test suite: `98 passed`.
+- `ruff check .`: `All checks passed!`
+- `mypy .`: `Success: no issues found in 87 source files`.
+
+### Failures And Fixes
+
+- Failure: new tests initially failed during collection because Phase 1 modules
+  and validation functions did not exist.
+- Fix: added the requested modules and focused functions, then reran the Phase 1
+  bundle and full checks.
+
+### Remaining Risks
+
+- The new DB tables currently have schema and index coverage but not full CRUD
+  helper coverage.
+- Delay detection operates on normalized dictionaries; later Excel/MCP work must
+  map workbook and database rows into that shape consistently.
+- Recovery candidates are intentionally simple MVP drafts and should be expanded
+  only after field review.
+
+## Phase 2 - Excel Input And Weekly Reports
+
+Date: 2026-05-21
+
+### Changed Files
+
+- `core/excel_io.py`
+- `core/reporting.py`
+- `samples/ai_construction_site_sample.json`
+- `tests/test_excel_io.py`
+- `tests/test_weekly_report_v2.py`
+- `PLAN.md`
+- `CHECKPOINT_LOG.md`
+
+### Implemented
+
+- Added an xlsxwriter-based field input template with sheets for daily progress,
+  cost input, material/inspection input, schedule, dashboard, delays, and report.
+- Added sample site data covering normal work, schedule delay, predecessor
+  blocking, cost overrun, material delay, inspection delay, missing owner, and
+  baseline change.
+- Added a v2 weekly construction report writer with dashboard, current-week
+  actuals, delayed TOP 10, recovery drafts, cost status, next-week plan, Gantt
+  data, and narrative report sheets.
+- Kept v0.1 `create_excel_report(...)` intact and added
+  `create_weekly_construction_report(...)` as a separate v2 entry point.
+
+### Commands Run
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_excel_io.py tests\test_weekly_report_v2.py -q
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m mypy .
+```
+
+### Test Result
+
+- New Phase 2 test bundle before implementation: failed as expected with missing
+  `core.excel_io` and `create_weekly_construction_report`.
+- New Phase 2 test bundle after implementation: `4 passed`.
+- Full test suite after Phase 2 before type fix: `102 passed`, `ruff` passed,
+  `mypy` found two `core/reporting.py` type narrowing issues.
+- Type fix verification: `tests/test_weekly_report_v2.py` `2 passed`, `mypy`
+  `Success: no issues found in 90 source files`.
+
+### Failures And Fixes
+
+- Failure: dashboard row order did not match the site-manager-focused test.
+  Fix: moved overall actual progress ahead of planned progress in the v2
+  dashboard sheet.
+- Failure: `mypy` rejected `max(..., key=scores.get)` and generic `float(object)`.
+  Fix: used a lambda key and narrowed numeric conversion inputs.
+
+### Remaining Risks
+
+- Excel reading/import of edited field templates is not implemented yet.
+- The generated workbook is intentionally simple; charts and print layouts need
+  a later visual/reporting pass.
+- Report-style differences are recorded but not yet deeply templated by audience.
+
+## Phase 3 - Site Manager Dashboard
+
+Date: 2026-05-21
+
+### Changed Files
+
+- `viewer/components/site_manager_dashboard.py`
+- `viewer/pages/08_site_manager_dashboard.py`
+- `tests/test_site_manager_dashboard.py`
+- `PLAN.md`
+- `CHECKPOINT_LOG.md`
+
+### Implemented
+
+- Added a site-manager dashboard summary builder that returns planned progress,
+  actual progress, variance, cost execution rate, billing rate, delayed activity
+  count, risk discipline, key risks, status, and thresholds.
+- Added configurable green/yellow/orange/red progress-variance thresholds.
+- Added a thin Streamlit page that loads the sample site JSON or an uploaded
+  JSON file and renders the dashboard summary.
+
+### Commands Run
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_site_manager_dashboard.py -q
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m mypy .
+```
+
+### Test Result
+
+- New Phase 3 test before implementation: failed as expected with missing
+  `viewer.components.site_manager_dashboard`.
+- New Phase 3 test after implementation: `2 passed`.
+- Full test suite: `104 passed`.
+- `ruff check .`: `All checks passed!`
+- `mypy .`: `Success: no issues found in 93 source files`.
+
+### Failures And Fixes
+
+- Failure: dashboard component did not exist.
+- Fix: added the summary builder and Streamlit page.
+
+### Remaining Risks
+
+- Streamlit rendering is intentionally minimal and should receive a usability
+  pass after field users confirm the metrics.
+- Dashboard currently reads normalized JSON data; direct SQLite-backed dashboard
+  loading remains a follow-up.
+
+## Phase 4 - MCP Tool Expansion
+
+Date: 2026-05-21
+
+### Changed Files
+
+- `tools/construction_tools.py`
+- `server.py`
+- `tests/test_construction_tools.py`
+- `tests/test_server.py`
+- `PLAN.md`
+- `CHECKPOINT_LOG.md`
+
+### Implemented
+
+- Added `input_daily_record`, `detect_delays`, `suggest_recovery`,
+  `generate_weekly_report`, and `summarize_site_status` tool wrappers.
+- Registered the new v2 construction tools in the MCP server.
+- Ensured `suggest_recovery` returns candidate/draft/review-required language
+  and tests reject final-decision wording.
+
+### Commands Run
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_construction_tools.py tests\test_server.py -q
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m mypy .
+```
+
+### Test Result
+
+- New Phase 4 test before implementation: failed as expected with missing
+  `tools.construction_tools`.
+- New Phase 4 test after implementation: `8 passed`.
+- Full test suite after Phase 4 before type fix: `109 passed`, `ruff` passed,
+  `mypy` found four input-normalization type issues.
+- Type fix verification: `tests/test_construction_tools.py` `4 passed`, `mypy`
+  `Success: no issues found in 95 source files`.
+
+### Failures And Fixes
+
+- Failure: `tools.construction_tools` did not exist.
+- Fix: added thin wrappers and MCP registration.
+- Failure: `mypy` treated normalized daily-record dictionary values as `object`.
+- Fix: introduced typed local variables before building the JSON-serializable
+  record dictionary.
+
+### Remaining Risks
+
+- `input_daily_record` validates and normalizes one record but does not yet
+  persist it into SQLite.
+- MCP tools currently accept normalized site JSON; direct project-file backed
+  versions can be added after field workflow shape is confirmed.
+
+## Phase 5 - Stabilization, Samples, And Docs
+
+Date: 2026-05-21
+
+### Changed Files
+
+- `README.md`
+- `docs/AI_CONSTRUCTION_SCHEDULER_V2_USER_GUIDE.md`
+- `docs/AI_CONSTRUCTION_SCHEDULER_V2_DATA_MODEL.md`
+- `docs/RELEASE_NOTES_v0.2.0-MVP.md`
+- `samples/field_input_template.xlsx`
+- `samples/ai_construction_weekly_report.xlsx`
+- `PLAN.md`
+- `CHECKPOINT_LOG.md`
+
+### Implemented
+
+- Documented v2.0 MVP setup, Excel workflow, dashboard workflow, MCP tools,
+  sample-data reproduction, data model, release notes, and known limitations.
+- Generated sample Excel artifacts from `samples/ai_construction_site_sample.json`.
+- Confirmed the generated weekly report detects 5 delayed activities and 1 cost
+  overrun from the sample scenario.
+
+### Commands Run
+
+```powershell
+.\.venv\Scripts\python.exe -c "import json; from core.excel_io import create_field_input_template; from core.reporting import create_weekly_construction_report; data=json.load(open('samples\\ai_construction_site_sample.json', encoding='utf-8')); print(create_field_input_template('samples\\field_input_template.xlsx', project_name=data['project']['name'], activities=data['activities'])); print(create_weekly_construction_report(data, 'samples\\ai_construction_weekly_report.xlsx'))"
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m mypy .
+git grep -nP "[\x{202A}-\x{202E}\x{2066}-\x{2069}]"
+```
+
+### Test Result
+
+- Sample field template generation: succeeded.
+- Sample weekly report generation: succeeded with `delayed_count=5` and
+  `cost_overrun_count=1`.
+- Full test suite: `109 passed`.
+- `ruff check .`: `All checks passed!`
+- `mypy .`: `Success: no issues found in 95 source files`.
+- bidi Unicode control-character grep: no matches.
+
+### Failures And Fixes
+
+- No Phase 5 verification failures.
+
+### Remaining Risks
+
+- Generated Excel files are sample artifacts, not final visual report templates.
+- SQLite persistence for v2 daily/cost/material/inspection records still needs
+  CRUD and migration coverage.
+- Audience-specific report prose is basic and should be expanded after field
+  review.

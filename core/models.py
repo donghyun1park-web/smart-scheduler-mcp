@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import date
-from typing import Literal
+from typing import Any, Literal
 
 
 ALLOWED_DISCIPLINES = frozenset({"위생", "공조", "소방", "전기", "자동제어", "공통"})
@@ -124,6 +124,99 @@ class Calendar:
     def __post_init__(self) -> None:
         if len(self.weekmask) != 7 or any(char not in {"0", "1"} for char in self.weekmask):
             raise ValueError("Calendar weekmask must be a 7-character 0/1 string")
+
+
+@dataclass(frozen=True)
+class DailyRecord:
+    record_id: str
+    activity_id: str
+    work_date: date
+    planned_qty: float = 0.0
+    actual_qty: float = 0.0
+    workers: int = 0
+    equipment: str = ""
+    owner: str = ""
+    remarks: str = ""
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class CostItem:
+    cost_item_id: str
+    activity_id: str
+    contract_amount: float = 0.0
+    execution_budget: float = 0.0
+    invested_cost: float = 0.0
+    billing_amount: float = 0.0
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class BaselineSnapshot:
+    snapshot_id: str
+    baseline_id: str
+    activity_id: str
+    start_date: date | None
+    finish_date: date | None
+    duration: int
+    revision: str
+    approved_by: str = ""
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class MaterialRecord:
+    material_id: str
+    activity_id: str
+    material_name: str
+    order_date: date | None = None
+    expected_date: date | None = None
+    actual_date: date | None = None
+    status: str = "planned"
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class InspectionRecord:
+    inspection_id: str
+    activity_id: str
+    inspection_type: str
+    planned_date: date | None = None
+    actual_date: date | None = None
+    status: str = "planned"
+    approver: str = ""
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class ChangeLogEntry:
+    change_id: str
+    target_table: str
+    target_id: str
+    before_value: str
+    after_value: str
+    reason: str
+    user: str
+    approved_by: str = ""
+    changed_at: date | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class ProjectSettings:
+    settings_id: str
+    project_id: str
+    disciplines: tuple[str, ...] = ()
+    thresholds: dict[str, Any] | None = None
+    report_style: str = "weekly_meeting"
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 def with_timestamps(model, created_at: str | None = None, updated_at: str | None = None):
