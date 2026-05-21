@@ -27,7 +27,7 @@ from core.models import (
 from core.progress import calculate_quantity_progress
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def initialize_database(path: str | Path) -> None:
@@ -85,6 +85,7 @@ def initialize_database(path: str | Path) -> None:
                 ef_date TEXT,
                 total_float INTEGER,
                 is_critical INTEGER NOT NULL DEFAULT 0,
+                progress_pct REAL NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY (wbs_id) REFERENCES wbs(wbs_id)
@@ -211,10 +212,23 @@ def initialize_database(path: str | Path) -> None:
             """
         )
         row = conn.execute("SELECT version FROM schema_version").fetchone()
+        current_version = int(row["version"]) if row else 0
+        if current_version < 3:
+            _migrate_add_progress_pct(conn)
         if row is None:
             conn.execute("INSERT INTO schema_version(version) VALUES (?)", (SCHEMA_VERSION,))
-        elif int(row["version"]) < SCHEMA_VERSION:
+        elif current_version < SCHEMA_VERSION:
             conn.execute("UPDATE schema_version SET version = ?", (SCHEMA_VERSION,))
+
+
+def _migrate_add_progress_pct(conn: sqlite3.Connection) -> None:
+    """v2 → v3: add ``progress_pct REAL NOT NULL DEFAULT 0`` to activities.
+
+    Safe to run on a freshly-created v3 DB — checks the column before adding.
+    """
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(activities)")}
+    if "progress_pct" not in cols:
+        conn.execute("ALTER TABLE activities ADD COLUMN progress_pct REAL NOT NULL DEFAULT 0")
 
 
 def create_calendar(path: str | Path, calendar: Calendar) -> Calendar:
@@ -336,9 +350,9 @@ def create_activity(path: str | Path, activity: Activity) -> Activity:
             INSERT INTO activities(
                 activity_id, code, name, wbs_id, discipline, zone, duration, cost,
                 es_workday, ef_workday, ls_workday, lf_workday, es_date, ef_date,
-                total_float, is_critical, created_at, updated_at
+                total_float, is_critical, progress_pct, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             _activity_values(stamped),
         )
@@ -376,6 +390,7 @@ def update_activity(path: str | Path, activity: Activity) -> Activity:
                 ef_date = ?,
                 total_float = ?,
                 is_critical = ?,
+                progress_pct = ?,
                 updated_at = ?
             WHERE activity_id = ?
             """,
@@ -395,6 +410,7 @@ def update_activity(path: str | Path, activity: Activity) -> Activity:
                 stamped.ef_date.isoformat() if stamped.ef_date else None,
                 stamped.total_float,
                 int(stamped.is_critical),
+                float(stamped.progress_pct),
                 stamped.updated_at,
                 stamped.activity_id,
             ),
@@ -1018,6 +1034,7 @@ def _activity_values(activity: Activity) -> tuple[object, ...]:
         activity.ef_date.isoformat() if activity.ef_date else None,
         activity.total_float,
         int(activity.is_critical),
+        float(activity.progress_pct),
         activity.created_at,
         activity.updated_at,
     )
@@ -1065,6 +1082,7 @@ def _activity_from_row(row: sqlite3.Row) -> Activity:
         ef_date=_parse_date(row["ef_date"]),
         total_float=row["total_float"],
         is_critical=bool(row["is_critical"]),
+        progress_pct=float(row["progress_pct"] if "progress_pct" in row.keys() else 0.0),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )

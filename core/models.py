@@ -53,6 +53,7 @@ class Activity:
     ef_date: date | None = None
     total_float: int | None = None
     is_critical: bool = False
+    progress_pct: float = 0.0
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -60,6 +61,10 @@ class Activity:
         object.__setattr__(self, "discipline", validate_discipline(self.discipline))
         if self.duration < 0:
             raise ValueError("Activity duration cannot be negative")
+        if not 0.0 <= float(self.progress_pct) <= 100.0:
+            raise ValueError(
+                f"Activity progress_pct must be between 0 and 100 (got {self.progress_pct})"
+            )
 
 
 @dataclass(frozen=True)

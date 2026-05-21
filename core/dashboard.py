@@ -347,13 +347,20 @@ def _time_progress(activity: Activity, as_of: date) -> float:
 
 
 def _actual_or_time_progress(db_path: str | Path, activity: Activity, as_of: date) -> float:
-    """Return actual progress from daily records, or fall back to time-based."""
+    """Return actual progress with the priority:
+
+    1. Daily-record quantity sums (most precise)
+    2. ``Activity.progress_pct`` manual entry (site-manager quick input)
+    3. Time-based linear progress (fallback)
+    """
     records = db.list_daily_records(db_path, activity_id=activity.activity_id, end_date=as_of)
     if records:
         planned = sum(r.planned_qty for r in records)
         actual = sum(r.actual_qty for r in records)
         if planned > 0:
             return min(percentage(actual, planned), 100.0)
+    if activity.progress_pct > 0:
+        return min(float(activity.progress_pct), 100.0)
     return _time_progress(activity, as_of)
 
 

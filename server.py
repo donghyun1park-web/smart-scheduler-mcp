@@ -39,6 +39,7 @@ from tools.material_tools import (
     update_inspection,
     update_material,
 )
+from tools.progress_tools import get_activity_progress, get_today_schedule, set_activity_progress
 from tools.project_tools import create_project, list_projects, load_project
 from tools.relationship_tools import generate_activity_relationships, suggest_activity_relationships
 from tools.report_tools import generate_report
@@ -95,6 +96,10 @@ def build_server() -> FastMCP:
     mcp.tool()(suggest_next_actions)
     mcp.tool()(explain_evm_from_db)
     mcp.tool()(get_workflow_status)
+    # Quick progress entry / today schedule
+    mcp.tool()(set_activity_progress)
+    mcp.tool()(get_activity_progress)
+    mcp.tool()(get_today_schedule)
     return mcp
 
 

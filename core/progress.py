@@ -137,7 +137,11 @@ def get_today_schedule_summary(
             finishes_today.append({"activity_id": act.activity_id, "code": act.code, "name": act.name, "discipline": act.discipline, "zone": act.zone})
         if act.es_date and act.es_date < today:
             summary = get_activity_progress_summary(db_path, act.activity_id)
-            if summary["actual_start_date"] is None and summary["progress_pct"] == 0.0:
+            no_daily_progress = (
+                summary["actual_start_date"] is None and summary["progress_pct"] == 0.0
+            )
+            no_manual_progress = float(getattr(act, "progress_pct", 0.0)) == 0.0
+            if no_daily_progress and no_manual_progress:
                 overdue_starts.append({
                     "activity_id": act.activity_id,
                     "code": act.code,
