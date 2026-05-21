@@ -39,6 +39,7 @@ from tools.material_tools import (
     update_inspection,
     update_material,
 )
+from tools.delay_impact_tools import analyze_delay_impact
 from tools.progress_tools import get_activity_progress, get_today_schedule, set_activity_progress
 from tools.project_tools import create_project, list_projects, load_project
 from tools.relationship_tools import generate_activity_relationships, suggest_activity_relationships
@@ -100,6 +101,8 @@ def build_server() -> FastMCP:
     mcp.tool()(set_activity_progress)
     mcp.tool()(get_activity_progress)
     mcp.tool()(get_today_schedule)
+    # Delay-impact what-if
+    mcp.tool()(analyze_delay_impact)
     return mcp
 
 
