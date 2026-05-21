@@ -4,6 +4,16 @@ from mcp.server.fastmcp import FastMCP
 
 from tools.analysis_tools import calculate_cpm, get_critical_path
 from tools.calibration_tools import calibrate_completion_date
+from tools.construction_tools import (
+    detect_delays,
+    generate_weekly_report,
+    generate_weekly_report_from_db,
+    input_daily_record,
+    import_excel_input_to_db,
+    list_change_log_tool,
+    suggest_recovery,
+    summarize_site_status,
+)
 from tools.field_uat_tools import run_field_uat_workflow
 from tools.import_tools import import_excel
 from tools.project_tools import create_project, list_projects, load_project
@@ -23,6 +33,14 @@ def build_server() -> FastMCP:
     mcp.tool()(generate_report)
     mcp.tool()(calibrate_completion_date)
     mcp.tool()(run_field_uat_workflow)
+    mcp.tool()(input_daily_record)
+    mcp.tool()(detect_delays)
+    mcp.tool()(suggest_recovery)
+    mcp.tool()(generate_weekly_report)
+    mcp.tool()(import_excel_input_to_db)
+    mcp.tool()(generate_weekly_report_from_db)
+    mcp.tool()(list_change_log_tool)
+    mcp.tool()(summarize_site_status)
     return mcp
 
 

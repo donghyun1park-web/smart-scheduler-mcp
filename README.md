@@ -4,6 +4,84 @@ Python-based MEP schedule assistant MVP for SQLite-backed schedule storage,
 CPM calculation, MCP tools, a Streamlit viewer, Plotly visualizations, and
 Excel reporting.
 
+## AI Construction Schedule v2.0 MVP
+
+This branch extends the v0.1 scheduler into an Excel-centered construction
+schedule MVP while preserving the existing CPM, SQLite, MCP, Streamlit, Plotly,
+and v0.1 Excel report behavior.
+
+### v2.1 Follow-Up Stabilization
+
+The v2.1 pass keeps the v2 SQLite and Excel loop intact and adds:
+
+- DB-backed Streamlit site-manager dashboard loading from a `.scheduler` DB.
+- `report_style` audience variants: `internal`, `hq`, and `client`.
+- Shared number conversion helpers in `core.number_utils`.
+- Recovery templates for equipment, inspection/approval, design change,
+  subcontractor, and weather delay reasons.
+
+### v2.2 Field Stabilization
+
+The v2.2 pass hardens real field use:
+
+- `import_field_input_to_db(..., conflict_policy="fail|skip|replace", dry_run=True)`
+- Batch import validation before DB changes
+- Automatic backup before non-dry-run imports
+- `list_change_log_tool` MCP access
+- Real DB smoke-test script that works on a copied `.scheduler` file
+- Protected Excel templates with filters, freeze panes, unlocked input cells,
+  and validation dropdowns
+- Simple EVM metrics for dashboard and HQ reporting
+
+New v2.0 MVP entry points:
+
+```powershell
+# Create a field input workbook template.
+.\.venv\Scripts\python.exe -c "from core.excel_io import create_field_input_template; print(create_field_input_template('samples\\field_input_template.xlsx', project_name='Demo Site'))"
+
+# Generate a weekly construction report from the sample site data.
+.\.venv\Scripts\python.exe -c "import json; from core.reporting import create_weekly_construction_report; data=json.load(open('samples\\ai_construction_site_sample.json', encoding='utf-8')); print(create_weekly_construction_report(data, 'samples\\ai_construction_weekly_report.xlsx', report_style='internal'))"
+
+# Import a completed field-input workbook into SQLite and generate a DB-backed report.
+.\.venv\Scripts\python.exe -c "from core.importer import import_field_input_to_db, generate_weekly_report_from_db; print(import_field_input_to_db('path\\to\\project.scheduler', 'path\\to\\field_input.xlsx', project_id='project-1')); print(generate_weekly_report_from_db('path\\to\\project.scheduler', 'path\\to\\weekly_from_db.xlsx', report_style='hq'))"
+
+# Load dashboard-ready data directly from SQLite.
+.\.venv\Scripts\python.exe -c "from viewer.components.site_manager_dashboard import load_site_dashboard_data_from_db; print(load_site_dashboard_data_from_db('path\\to\\project.scheduler', project_id='project-1'))"
+
+# Smoke-test a real DB by copying it first.
+.\.venv\Scripts\python.exe scripts\smoke_test_real_scheduler.py --db path\to\real.scheduler --excel path\to\field_input.xlsx --out-dir smoke_outputs
+
+# Run the site-manager dashboard.
+.\.venv\Scripts\python.exe -m streamlit run viewer/pages/08_site_manager_dashboard.py
+```
+
+The sample data at `samples/ai_construction_site_sample.json` includes normal
+work, delayed work, predecessor blocking, cost overrun, material delay,
+inspection delay, missing owner, and baseline-change scenarios.
+
+New MCP tools:
+
+- `input_daily_record`
+- `detect_delays`
+- `suggest_recovery`
+- `generate_weekly_report`
+- `import_excel_input_to_db`
+- `generate_weekly_report_from_db`
+- `list_change_log_tool`
+- `summarize_site_status`
+
+`suggest_recovery` only returns draft/candidate/review-required language. It
+does not confirm or order a recovery action.
+
+See:
+
+- [AI Construction Scheduler v2 User Guide](docs/AI_CONSTRUCTION_SCHEDULER_V2_USER_GUIDE.md)
+- [AI Construction Scheduler v2 Data Model](docs/AI_CONSTRUCTION_SCHEDULER_V2_DATA_MODEL.md)
+- [Release Notes v0.2.2](docs/RELEASE_NOTES_v0.2.2.md)
+- [Release Notes v0.2.1](docs/RELEASE_NOTES_v0.2.1.md)
+- [Release Notes v0.2.0 MVP](docs/RELEASE_NOTES_v0.2.0-MVP.md)
+- [Real Scheduler DB Smoke Test](docs/SMOKE_TEST_REAL_SCHEDULER.md)
+
 ## v0.1 Scope
 
 - Core dataclasses and SQLite `.scheduler` project storage

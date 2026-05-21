@@ -49,7 +49,7 @@ class KoreanCalendar:
         self.calendar = calendar
         self.user_holidays = {date.fromisoformat(value) for value in calendar.holidays}
         # Cache KR holidays per year so we don't rebuild the lookup on every call.
-        self._kr_holidays_cache: dict[int, object] = {}
+        self._kr_holidays_cache: dict[int, set[date]] = {}
         # Memoize (project_start, offset) -> date so repeated lookups across
         # activities (each calls 4x) don't re-scan from the project start.
         self._workday_cache: dict[tuple[date, int], date] = {}
@@ -97,10 +97,10 @@ class KoreanCalendar:
             return False
         return value not in self._kr_holidays_for(value.year)
 
-    def _kr_holidays_for(self, year: int) -> object:
+    def _kr_holidays_for(self, year: int) -> set[date]:
         cached = self._kr_holidays_cache.get(year)
         if cached is None:
-            cached = holidays.country_holidays("KR", years=[year])
+            cached = set(holidays.country_holidays("KR", years=[year]))
             self._kr_holidays_cache[year] = cached
         return cached
 

@@ -7,10 +7,27 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
-from core.models import Activity, ActivityCpmResult, Calendar, Project, Relationship, WBS
+from core.cost import calculate_billing_rate, calculate_cost_execution_rate
+from core.disciplines import normalize_discipline
+from core.models import (
+    Activity,
+    ActivityCpmResult,
+    BaselineSnapshot,
+    Calendar,
+    ChangeLogEntry,
+    CostItem,
+    DailyRecord,
+    InspectionRecord,
+    MaterialRecord,
+    Project,
+    ProjectSettings,
+    Relationship,
+    WBS,
+)
+from core.progress import calculate_quantity_progress
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def initialize_database(path: str | Path) -> None:
@@ -83,15 +100,121 @@ def initialize_database(path: str | Path) -> None:
                 FOREIGN KEY (pred_id) REFERENCES activities(activity_id),
                 FOREIGN KEY (succ_id) REFERENCES activities(activity_id)
             );
+            CREATE TABLE IF NOT EXISTS daily_records (
+                record_id TEXT PRIMARY KEY,
+                activity_id TEXT NOT NULL,
+                work_date TEXT NOT NULL,
+                planned_qty REAL NOT NULL DEFAULT 0,
+                actual_qty REAL NOT NULL DEFAULT 0,
+                workers INTEGER NOT NULL DEFAULT 0,
+                equipment TEXT NOT NULL DEFAULT '',
+                owner TEXT NOT NULL DEFAULT '',
+                remarks TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (activity_id) REFERENCES activities(activity_id)
+            );
+            CREATE TABLE IF NOT EXISTS cost_items (
+                cost_item_id TEXT PRIMARY KEY,
+                activity_id TEXT NOT NULL,
+                contract_amount REAL NOT NULL DEFAULT 0,
+                execution_budget REAL NOT NULL DEFAULT 0,
+                invested_cost REAL NOT NULL DEFAULT 0,
+                billing_amount REAL NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (activity_id) REFERENCES activities(activity_id)
+            );
+            CREATE TABLE IF NOT EXISTS baseline_snapshots (
+                snapshot_id TEXT PRIMARY KEY,
+                baseline_id TEXT NOT NULL,
+                project_id TEXT NOT NULL DEFAULT '',
+                activity_id TEXT NOT NULL,
+                start_date TEXT,
+                finish_date TEXT,
+                duration INTEGER NOT NULL DEFAULT 0,
+                revision TEXT NOT NULL,
+                approved_by TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (activity_id) REFERENCES activities(activity_id)
+            );
+            CREATE TABLE IF NOT EXISTS materials (
+                material_id TEXT PRIMARY KEY,
+                activity_id TEXT NOT NULL,
+                material_name TEXT NOT NULL,
+                order_date TEXT,
+                expected_date TEXT,
+                actual_date TEXT,
+                status TEXT NOT NULL DEFAULT 'planned',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (activity_id) REFERENCES activities(activity_id)
+            );
+            CREATE TABLE IF NOT EXISTS inspections (
+                inspection_id TEXT PRIMARY KEY,
+                activity_id TEXT NOT NULL,
+                inspection_type TEXT NOT NULL,
+                planned_date TEXT,
+                actual_date TEXT,
+                status TEXT NOT NULL DEFAULT 'planned',
+                approver TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (activity_id) REFERENCES activities(activity_id)
+            );
+            CREATE TABLE IF NOT EXISTS change_log (
+                change_id TEXT PRIMARY KEY,
+                target_table TEXT NOT NULL,
+                target_id TEXT NOT NULL,
+                before_value TEXT NOT NULL DEFAULT '',
+                after_value TEXT NOT NULL DEFAULT '',
+                reason TEXT NOT NULL DEFAULT '',
+                user TEXT NOT NULL DEFAULT '',
+                approved_by TEXT NOT NULL DEFAULT '',
+                changed_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS project_settings (
+                settings_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                disciplines TEXT NOT NULL DEFAULT '[]',
+                thresholds TEXT NOT NULL DEFAULT '{}',
+                report_style TEXT NOT NULL DEFAULT 'weekly_meeting',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (project_id) REFERENCES projects(project_id)
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_cost_items_activity_unique
+                ON cost_items(activity_id);
             CREATE INDEX IF NOT EXISTS idx_activities_wbs_id ON activities(wbs_id);
             CREATE INDEX IF NOT EXISTS idx_activities_discipline ON activities(discipline);
             CREATE INDEX IF NOT EXISTS idx_relationships_pred_id ON relationships(pred_id);
             CREATE INDEX IF NOT EXISTS idx_relationships_succ_id ON relationships(succ_id);
+            CREATE INDEX IF NOT EXISTS idx_daily_records_activity_date
+                ON daily_records(activity_id, work_date);
+            CREATE INDEX IF NOT EXISTS idx_cost_items_activity_id
+                ON cost_items(activity_id);
+            CREATE INDEX IF NOT EXISTS idx_baseline_snapshots_baseline_id
+                ON baseline_snapshots(baseline_id);
+            CREATE INDEX IF NOT EXISTS idx_materials_activity_status
+                ON materials(activity_id, status);
+            CREATE INDEX IF NOT EXISTS idx_inspections_activity_status
+                ON inspections(activity_id, status);
+            CREATE INDEX IF NOT EXISTS idx_change_log_target
+                ON change_log(target_table, target_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_project_settings_project_unique
+                ON project_settings(project_id);
+            CREATE INDEX IF NOT EXISTS idx_baseline_snapshots_project_id
+                ON baseline_snapshots(project_id);
             """
         )
-        existing = conn.execute("SELECT COUNT(*) FROM schema_version").fetchone()[0]
-        if existing == 0:
+        row = conn.execute("SELECT version FROM schema_version").fetchone()
+        if row is None:
             conn.execute("INSERT INTO schema_version(version) VALUES (?)", (SCHEMA_VERSION,))
+        elif int(row["version"]) < SCHEMA_VERSION:
+            conn.execute("UPDATE schema_version SET version = ?", (SCHEMA_VERSION,))
 
 
 def create_calendar(path: str | Path, calendar: Calendar) -> Calendar:
@@ -341,6 +464,18 @@ def list_indexes(path: str | Path) -> set[str]:
     return {row["name"] for row in rows}
 
 
+def list_tables(path: str | Path) -> set[str]:
+    with _connect(path) as conn:
+        rows = conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+    return {row["name"] for row in rows}
+
+
+def list_table_columns(path: str | Path, table_name: str) -> list[str]:
+    with _connect(path) as conn:
+        rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return [row["name"] for row in rows]
+
+
 def update_cpm_results(path: str | Path, results: list[ActivityCpmResult]) -> None:
     timestamp = _now()
     with _connect(path) as conn:
@@ -374,6 +509,423 @@ def update_cpm_results(path: str | Path, results: list[ActivityCpmResult]) -> No
                 for result in results
             ],
         )
+
+
+def create_daily_record(path: str | Path, record: DailyRecord) -> DailyRecord:
+    stamped = _stamp(record)
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            INSERT INTO daily_records(
+                record_id, activity_id, work_date, planned_qty, actual_qty,
+                workers, equipment, owner, remarks, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                stamped.record_id,
+                stamped.activity_id,
+                stamped.work_date.isoformat(),
+                stamped.planned_qty,
+                stamped.actual_qty,
+                stamped.workers,
+                stamped.equipment,
+                stamped.owner,
+                stamped.remarks,
+                stamped.created_at,
+                stamped.updated_at,
+            ),
+        )
+    return stamped
+
+
+def list_daily_records(
+    path: str | Path,
+    *,
+    activity_id: str | None = None,
+    work_date: str | date | None = None,
+    start_date: str | date | None = None,
+    end_date: str | date | None = None,
+) -> list[DailyRecord]:
+    clauses: list[str] = []
+    params: list[object] = []
+    if activity_id is not None:
+        clauses.append("activity_id = ?")
+        params.append(activity_id)
+    if work_date is not None:
+        clauses.append("work_date = ?")
+        params.append(_date_param(work_date))
+    if start_date is not None:
+        clauses.append("work_date >= ?")
+        params.append(_date_param(start_date))
+    if end_date is not None:
+        clauses.append("work_date <= ?")
+        params.append(_date_param(end_date))
+    query = "SELECT * FROM daily_records"
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    query += " ORDER BY work_date, record_id"
+    with _connect(path) as conn:
+        rows = conn.execute(query, tuple(params)).fetchall()
+    return [_daily_record_from_row(row) for row in rows]
+
+
+def delete_daily_records(
+    path: str | Path,
+    *,
+    activity_id: str,
+    work_date: str | date,
+) -> int:
+    with _connect(path) as conn:
+        cursor = conn.execute(
+            "DELETE FROM daily_records WHERE activity_id = ? AND work_date = ?",
+            (activity_id, _date_param(work_date)),
+        )
+    return cursor.rowcount
+
+
+def get_cumulative_qty(path: str | Path, activity_id: str) -> dict[str, float]:
+    with _connect(path) as conn:
+        row = conn.execute(
+            """
+            SELECT COALESCE(SUM(planned_qty), 0) AS planned_qty,
+                   COALESCE(SUM(actual_qty), 0) AS actual_qty
+            FROM daily_records
+            WHERE activity_id = ?
+            """,
+            (activity_id,),
+        ).fetchone()
+    planned_qty = float(row["planned_qty"])
+    actual_qty = float(row["actual_qty"])
+    return {
+        "planned_qty": planned_qty,
+        "actual_qty": actual_qty,
+        "progress_pct": calculate_quantity_progress(planned_qty, actual_qty),
+    }
+
+
+def upsert_cost_item(path: str | Path, item: CostItem) -> CostItem:
+    stamped = _stamp(item)
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            INSERT INTO cost_items(
+                cost_item_id, activity_id, contract_amount, execution_budget,
+                invested_cost, billing_amount, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(activity_id) DO UPDATE SET
+                cost_item_id = excluded.cost_item_id,
+                contract_amount = excluded.contract_amount,
+                execution_budget = excluded.execution_budget,
+                invested_cost = excluded.invested_cost,
+                billing_amount = excluded.billing_amount,
+                updated_at = excluded.updated_at
+            """,
+            (
+                stamped.cost_item_id,
+                stamped.activity_id,
+                stamped.contract_amount,
+                stamped.execution_budget,
+                stamped.invested_cost,
+                stamped.billing_amount,
+                stamped.created_at,
+                stamped.updated_at,
+            ),
+        )
+    return stamped
+
+
+def list_cost_items(path: str | Path, *, activity_id: str | None = None) -> list[CostItem]:
+    query = "SELECT * FROM cost_items"
+    params: tuple[object, ...] = ()
+    if activity_id is not None:
+        query += " WHERE activity_id = ?"
+        params = (activity_id,)
+    query += " ORDER BY activity_id"
+    with _connect(path) as conn:
+        rows = conn.execute(query, params).fetchall()
+    return [_cost_item_from_row(row) for row in rows]
+
+
+def get_cost_summary(path: str | Path) -> dict[str, float]:
+    with _connect(path) as conn:
+        row = conn.execute(
+            """
+            SELECT COALESCE(SUM(contract_amount), 0) AS contract_amount,
+                   COALESCE(SUM(execution_budget), 0) AS execution_budget,
+                   COALESCE(SUM(invested_cost), 0) AS invested_cost,
+                   COALESCE(SUM(billing_amount), 0) AS billing_amount
+            FROM cost_items
+            """
+        ).fetchone()
+    contract_amount = float(row["contract_amount"])
+    execution_budget = float(row["execution_budget"])
+    invested_cost = float(row["invested_cost"])
+    billing_amount = float(row["billing_amount"])
+    return {
+        "contract_amount": contract_amount,
+        "execution_budget": execution_budget,
+        "invested_cost": invested_cost,
+        "billing_amount": billing_amount,
+        "cost_execution_rate": calculate_cost_execution_rate(execution_budget, invested_cost),
+        "billing_rate": calculate_billing_rate(contract_amount, billing_amount),
+    }
+
+
+def create_material_record(path: str | Path, record: MaterialRecord) -> MaterialRecord:
+    stamped = _stamp(record)
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            INSERT INTO materials(
+                material_id, activity_id, material_name, order_date, expected_date,
+                actual_date, status, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            _material_values(stamped),
+        )
+    return stamped
+
+
+def list_materials(
+    path: str | Path,
+    *,
+    activity_id: str | None = None,
+    status: str | None = None,
+) -> list[MaterialRecord]:
+    rows = _select_with_optional_filters(
+        path,
+        "materials",
+        {"activity_id": activity_id, "status": status},
+        "activity_id, material_id",
+    )
+    return [_material_from_row(row) for row in rows]
+
+
+def update_material_status(
+    path: str | Path,
+    material_id: str,
+    *,
+    actual_date: str | date | None = None,
+    status: str,
+) -> MaterialRecord:
+    timestamp = _now()
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            UPDATE materials
+            SET actual_date = ?, status = ?, updated_at = ?
+            WHERE material_id = ?
+            """,
+            (_optional_date_param(actual_date), status, timestamp, material_id),
+        )
+        row = conn.execute("SELECT * FROM materials WHERE material_id = ?", (material_id,)).fetchone()
+    if row is None:
+        raise ValueError(f"Material not found: {material_id}")
+    return _material_from_row(row)
+
+
+def create_inspection_record(path: str | Path, record: InspectionRecord) -> InspectionRecord:
+    stamped = _stamp(record)
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            INSERT INTO inspections(
+                inspection_id, activity_id, inspection_type, planned_date,
+                actual_date, status, approver, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            _inspection_values(stamped),
+        )
+    return stamped
+
+
+def list_inspections(
+    path: str | Path,
+    *,
+    activity_id: str | None = None,
+    status: str | None = None,
+) -> list[InspectionRecord]:
+    rows = _select_with_optional_filters(
+        path,
+        "inspections",
+        {"activity_id": activity_id, "status": status},
+        "activity_id, inspection_id",
+    )
+    return [_inspection_from_row(row) for row in rows]
+
+
+def update_inspection_status(
+    path: str | Path,
+    inspection_id: str,
+    *,
+    actual_date: str | date | None = None,
+    status: str,
+    approver: str | None = None,
+) -> InspectionRecord:
+    timestamp = _now()
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            UPDATE inspections
+            SET actual_date = ?, status = ?, approver = COALESCE(?, approver), updated_at = ?
+            WHERE inspection_id = ?
+            """,
+            (_optional_date_param(actual_date), status, approver, timestamp, inspection_id),
+        )
+        row = conn.execute("SELECT * FROM inspections WHERE inspection_id = ?", (inspection_id,)).fetchone()
+    if row is None:
+        raise ValueError(f"Inspection not found: {inspection_id}")
+    return _inspection_from_row(row)
+
+
+def log_change(path: str | Path, entry: ChangeLogEntry) -> ChangeLogEntry:
+    stamped = _stamp(entry)
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            INSERT INTO change_log(
+                change_id, target_table, target_id, before_value, after_value,
+                reason, user, approved_by, changed_at, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                stamped.change_id,
+                stamped.target_table,
+                stamped.target_id,
+                stamped.before_value,
+                stamped.after_value,
+                stamped.reason,
+                stamped.user,
+                stamped.approved_by,
+                stamped.changed_at.isoformat() if stamped.changed_at else None,
+                stamped.created_at,
+                stamped.updated_at,
+            ),
+        )
+    return stamped
+
+
+def list_change_log(
+    path: str | Path,
+    *,
+    target_table: str | None = None,
+    target_id: str | None = None,
+) -> list[ChangeLogEntry]:
+    rows = _select_with_optional_filters(
+        path,
+        "change_log",
+        {"target_table": target_table, "target_id": target_id},
+        "created_at, change_id",
+    )
+    return [_change_log_from_row(row) for row in rows]
+
+
+def upsert_project_settings(path: str | Path, settings: ProjectSettings) -> ProjectSettings:
+    stamped = _stamp(
+        replace(
+            settings,
+            disciplines=tuple(normalize_discipline(value) for value in settings.disciplines),
+        )
+    )
+    thresholds = json.dumps(stamped.thresholds or {}, ensure_ascii=False)
+    disciplines = json.dumps(list(stamped.disciplines), ensure_ascii=False)
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            INSERT INTO project_settings(
+                settings_id, project_id, disciplines, thresholds, report_style,
+                created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(project_id) DO UPDATE SET
+                settings_id = excluded.settings_id,
+                disciplines = excluded.disciplines,
+                thresholds = excluded.thresholds,
+                report_style = excluded.report_style,
+                updated_at = excluded.updated_at
+            """,
+            (
+                stamped.settings_id,
+                stamped.project_id,
+                disciplines,
+                thresholds,
+                stamped.report_style,
+                stamped.created_at,
+                stamped.updated_at,
+            ),
+        )
+    return stamped
+
+
+def get_project_settings(path: str | Path, project_id: str) -> ProjectSettings | None:
+    with _connect(path) as conn:
+        row = conn.execute(
+            "SELECT * FROM project_settings WHERE project_id = ?",
+            (project_id,),
+        ).fetchone()
+    return _project_settings_from_row(row) if row else None
+
+
+def create_baseline_snapshot(path: str | Path, snapshot: BaselineSnapshot) -> BaselineSnapshot:
+    stamped = _stamp(snapshot)
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            INSERT INTO baseline_snapshots(
+                snapshot_id, baseline_id, project_id, activity_id, start_date,
+                finish_date, duration, revision, approved_by, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                stamped.snapshot_id,
+                stamped.baseline_id,
+                stamped.project_id,
+                stamped.activity_id,
+                stamped.start_date.isoformat() if stamped.start_date else None,
+                stamped.finish_date.isoformat() if stamped.finish_date else None,
+                stamped.duration,
+                stamped.revision,
+                stamped.approved_by,
+                stamped.created_at,
+                stamped.updated_at,
+            ),
+        )
+    return stamped
+
+
+def list_baseline_snapshots(
+    path: str | Path,
+    *,
+    project_id: str | None = None,
+    baseline_id: str | None = None,
+) -> list[BaselineSnapshot]:
+    rows = _select_with_optional_filters(
+        path,
+        "baseline_snapshots",
+        {"project_id": project_id, "baseline_id": baseline_id},
+        "created_at, snapshot_id",
+    )
+    return [_baseline_snapshot_from_row(row) for row in rows]
+
+
+def get_latest_baseline_snapshot(path: str | Path, project_id: str) -> BaselineSnapshot | None:
+    with _connect(path) as conn:
+        row = conn.execute(
+            """
+            SELECT * FROM baseline_snapshots
+            WHERE project_id = ?
+            ORDER BY created_at DESC, snapshot_id DESC
+            LIMIT 1
+            """,
+            (project_id,),
+        ).fetchone()
+    return _baseline_snapshot_from_row(row) if row else None
 
 
 def load_project_summary(path: str | Path) -> dict[str, object]:
@@ -415,6 +967,37 @@ def _stamp(model):
 
 def _parse_date(value: str | None) -> date | None:
     return date.fromisoformat(value) if value else None
+
+
+def _date_param(value: str | date) -> str:
+    return value.isoformat() if isinstance(value, date) else value
+
+
+def _optional_date_param(value: str | date | None) -> str | None:
+    if value is None:
+        return None
+    return _date_param(value)
+
+
+def _select_with_optional_filters(
+    path: str | Path,
+    table_name: str,
+    filters: dict[str, object | None],
+    order_by: str,
+) -> list[sqlite3.Row]:
+    clauses: list[str] = []
+    params: list[object] = []
+    for column, value in filters.items():
+        if value is None:
+            continue
+        clauses.append(f"{column} = ?")
+        params.append(value)
+    query = f"SELECT * FROM {table_name}"
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    query += f" ORDER BY {order_by}"
+    with _connect(path) as conn:
+        return conn.execute(query, tuple(params)).fetchall()
 
 
 def _activity_values(activity: Activity) -> tuple[object, ...]:
@@ -494,6 +1077,135 @@ def _relationship_from_row(row: sqlite3.Row) -> Relationship:
         succ_id=row["succ_id"],
         rel_type=row["rel_type"],
         lag_days=row["lag_days"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _daily_record_from_row(row: sqlite3.Row) -> DailyRecord:
+    return DailyRecord(
+        record_id=row["record_id"],
+        activity_id=row["activity_id"],
+        work_date=date.fromisoformat(row["work_date"]),
+        planned_qty=row["planned_qty"],
+        actual_qty=row["actual_qty"],
+        workers=row["workers"],
+        equipment=row["equipment"],
+        owner=row["owner"],
+        remarks=row["remarks"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _cost_item_from_row(row: sqlite3.Row) -> CostItem:
+    return CostItem(
+        cost_item_id=row["cost_item_id"],
+        activity_id=row["activity_id"],
+        contract_amount=row["contract_amount"],
+        execution_budget=row["execution_budget"],
+        invested_cost=row["invested_cost"],
+        billing_amount=row["billing_amount"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _material_values(record: MaterialRecord) -> tuple[object, ...]:
+    return (
+        record.material_id,
+        record.activity_id,
+        record.material_name,
+        record.order_date.isoformat() if record.order_date else None,
+        record.expected_date.isoformat() if record.expected_date else None,
+        record.actual_date.isoformat() if record.actual_date else None,
+        record.status,
+        record.created_at,
+        record.updated_at,
+    )
+
+
+def _material_from_row(row: sqlite3.Row) -> MaterialRecord:
+    return MaterialRecord(
+        material_id=row["material_id"],
+        activity_id=row["activity_id"],
+        material_name=row["material_name"],
+        order_date=_parse_date(row["order_date"]),
+        expected_date=_parse_date(row["expected_date"]),
+        actual_date=_parse_date(row["actual_date"]),
+        status=row["status"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _inspection_values(record: InspectionRecord) -> tuple[object, ...]:
+    return (
+        record.inspection_id,
+        record.activity_id,
+        record.inspection_type,
+        record.planned_date.isoformat() if record.planned_date else None,
+        record.actual_date.isoformat() if record.actual_date else None,
+        record.status,
+        record.approver,
+        record.created_at,
+        record.updated_at,
+    )
+
+
+def _inspection_from_row(row: sqlite3.Row) -> InspectionRecord:
+    return InspectionRecord(
+        inspection_id=row["inspection_id"],
+        activity_id=row["activity_id"],
+        inspection_type=row["inspection_type"],
+        planned_date=_parse_date(row["planned_date"]),
+        actual_date=_parse_date(row["actual_date"]),
+        status=row["status"],
+        approver=row["approver"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _change_log_from_row(row: sqlite3.Row) -> ChangeLogEntry:
+    return ChangeLogEntry(
+        change_id=row["change_id"],
+        target_table=row["target_table"],
+        target_id=row["target_id"],
+        before_value=row["before_value"],
+        after_value=row["after_value"],
+        reason=row["reason"],
+        user=row["user"],
+        approved_by=row["approved_by"],
+        changed_at=_parse_date(row["changed_at"]),
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _project_settings_from_row(row: sqlite3.Row) -> ProjectSettings:
+    return ProjectSettings(
+        settings_id=row["settings_id"],
+        project_id=row["project_id"],
+        disciplines=tuple(json.loads(row["disciplines"])),
+        thresholds=json.loads(row["thresholds"]),
+        report_style=row["report_style"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _baseline_snapshot_from_row(row: sqlite3.Row) -> BaselineSnapshot:
+    return BaselineSnapshot(
+        snapshot_id=row["snapshot_id"],
+        baseline_id=row["baseline_id"],
+        activity_id=row["activity_id"],
+        start_date=_parse_date(row["start_date"]),
+        finish_date=_parse_date(row["finish_date"]),
+        duration=row["duration"],
+        revision=row["revision"],
+        project_id=row["project_id"],
+        approved_by=row["approved_by"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
