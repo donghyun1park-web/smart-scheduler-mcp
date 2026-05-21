@@ -23,11 +23,15 @@ drafts.
 
 - Do not break the existing CPM, SQLite, MCP, Streamlit, Plotly, or Excel report
   behavior.
+- The v2 operating loop is Excel input -> SQLite v2 tables -> validation and
+  calculation -> Excel weekly report.
 - Treat Excel as the field input and review surface; keep calculations,
   validation, aggregation, and report generation in Python.
 - Do not turn `Activity` into a catch-all table. Add separate tables for
   `daily_records`, `cost_items`, `baseline_snapshots`, `materials`,
   `inspections`, `change_log`, and `project_settings`.
+- Support both existing MEP disciplines and v2 Korean construction disciplines:
+  `토목`, `건축`, `기계설비`, `소방설비`, `전기설비`, `공통`.
 - AI-assisted recovery output must remain a draft or candidate. Never present it
   as a final decision.
 - Data validation and backup behavior have priority over convenience features.

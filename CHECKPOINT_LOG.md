@@ -370,3 +370,91 @@ git grep -nP "[\x{202A}-\x{202E}\x{2066}-\x{2069}]"
   CRUD and migration coverage.
 - Audience-specific report prose is basic and should be expanded after field
   review.
+
+## Stabilization Pass - Excel Input To DB Loop
+
+Date: 2026-05-21
+
+### Changed Files
+
+- `core/db.py`
+- `core/models.py`
+- `core/disciplines.py`
+- `core/excel_io.py`
+- `core/importer.py`
+- `tools/construction_tools.py`
+- `server.py`
+- `samples/ai_construction_site_sample.json`
+- `samples/field_input_template.xlsx`
+- `samples/ai_construction_weekly_report.xlsx`
+- `tests/test_db_v2_schema.py`
+- `tests/test_disciplines.py`
+- `tests/test_db_v2_crud.py`
+- `tests/test_excel_io.py`
+- `tests/test_excel_import_flow.py`
+- `tests/test_construction_tools.py`
+- `tests/test_server.py`
+- `README.md`
+- `AGENTS.md`
+- `PLAN.md`
+- `docs/AI_CONSTRUCTION_SCHEDULER_V2_USER_GUIDE.md`
+- `docs/AI_CONSTRUCTION_SCHEDULER_V2_DATA_MODEL.md`
+- `docs/RELEASE_NOTES_v0.2.0-MVP.md`
+
+### Implemented
+
+- Created safety checkpoint commit `b37edfb` before stabilization work.
+- Added checkpoint files under `.codex_checkpoints/`.
+- Changed `SCHEMA_VERSION` to 2 and added v1-to-v2 schema version upgrade
+  behavior.
+- Added `core.disciplines` with MEP and Korean construction-discipline support
+  plus English alias normalization.
+- Added v2 SQLite CRUD for daily records, cost items, materials, inspections,
+  change log, project settings, and baseline snapshots.
+- Added openpyxl Excel readers for field input sheets.
+- Added `core.importer.import_field_input_to_db()` and
+  `generate_weekly_report_from_db()`.
+- Added MCP wrappers `import_excel_input_to_db` and
+  `generate_weekly_report_from_db`.
+- Converted sample site disciplines to Korean standard values and regenerated
+  sample Excel artifacts.
+
+### Commands Run
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m mypy .
+.\.venv\Scripts\python.exe -c "import json; from core.excel_io import create_field_input_template; from core.reporting import create_weekly_construction_report; data=json.load(open('samples\\ai_construction_site_sample.json', encoding='utf-8')); print(create_field_input_template('samples\\field_input_template.xlsx', project_name=data['project']['name'], activities=data['activities'])); print(create_weekly_construction_report(data, 'samples\\ai_construction_weekly_report.xlsx'))"
+```
+
+### Test Result
+
+- Current focused tests:
+  - `tests/test_db_v2_schema.py tests/test_disciplines.py tests/test_db_v2_crud.py`: `12 passed`
+  - `tests/test_excel_io.py`: `5 passed`
+  - `tests/test_excel_import_flow.py tests/test_construction_tools.py tests/test_server.py`: `10 passed`
+- Full suite before final doc update: `124 passed`.
+- `ruff check .`: fixed one unused import and then passed.
+- `mypy .`: fixed openpyxl worksheet typing and compatibility export, then
+  passed.
+
+### Failures And Fixes
+
+- Failure: schema version tests initially failed because `SCHEMA_VERSION` was 1.
+  Fix: set version to 2 and update existing lower versions.
+- Failure: discipline tests failed because `core.disciplines` did not exist.
+  Fix: added discipline normalization and preserved `core.models.ALLOWED_DISCIPLINES`.
+- Failure: v2 CRUD tests failed because DB functions did not exist.
+  Fix: added CRUD, summaries, filters, and row converters.
+- Failure: Excel reader tests failed because read functions did not exist.
+  Fix: added openpyxl read helpers with sheet/header validation.
+- Failure: import flow tests failed because `core.importer` and DB-backed MCP
+  functions did not exist.
+  Fix: added importer and registered tools.
+
+### Remaining Risks
+
+- DB-backed Streamlit dashboard loading is still a UI follow-up.
+- Report style templates are still simple.
+- Excel import conflict handling is intentionally MVP-simple.

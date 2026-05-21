@@ -6,6 +6,10 @@
 progress, cost, baseline, material, inspection, change history, and settings
 data live in separate tables.
 
+`SCHEMA_VERSION` is `2`. `initialize_database()` creates v2 tables for new
+databases and upgrades a v1 `schema_version` row to version 2 when an existing
+database is opened.
+
 ## Tables
 
 ### `activities`
@@ -116,8 +120,9 @@ style.
 
 ## MVP Notes
 
-- CRUD helpers are still focused on v0.1 entities. v2 table persistence helpers
-  should be added once the field input workflow is confirmed.
-- Dashboard and MCP tools currently accept normalized JSON and can later be
-  backed by these tables.
+- v2 CRUD helpers exist for daily records, cost items, materials, inspections,
+  change log, project settings, and baseline snapshots.
+- Excel input can be read and imported into the v2 tables.
+- DB-backed weekly report generation builds normalized report data from these
+  tables.
 - Activity table bloat is explicitly guarded by tests.

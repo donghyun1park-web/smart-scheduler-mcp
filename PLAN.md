@@ -271,3 +271,21 @@ Streamlit, Plotly, MCP FastMCP, pytest, ruff, mypy.
 - AI recovery output uses only draft/candidate/review-required language.
 - `CHECKPOINT_LOG.md` records implementation, test results, failures/fixes, and
   remaining risks for every phase.
+
+## Stabilization Pass - Real-Use Loop
+
+**Goal:** Complete the practical loop from field Excel input to SQLite storage
+and DB-backed weekly report generation.
+
+- [x] Create a safety checkpoint commit before additional stabilization work.
+- [x] Move schema management to `SCHEMA_VERSION = 2`.
+- [x] Add migration behavior so an existing v1 `schema_version` row is upgraded
+  to version 2.
+- [x] Add Korean construction-discipline normalization and English aliases.
+- [x] Add v2 SQLite CRUD for daily records, cost items, materials, inspections,
+  change log, project settings, and baseline snapshots.
+- [x] Add openpyxl readers for daily, cost, material, and inspection workbook
+  input sheets.
+- [x] Add Excel input to DB import flow.
+- [x] Add DB-backed weekly report generation and MCP wrappers.
+- [x] Keep `create_excel_report()` and existing v0.1 MCP tools intact.

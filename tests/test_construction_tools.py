@@ -8,7 +8,9 @@ from core.recovery import FORBIDDEN_FINAL_WORDS
 from tools.construction_tools import (
     detect_delays,
     generate_weekly_report,
+    generate_weekly_report_from_db,
     input_daily_record,
+    import_excel_input_to_db,
     suggest_recovery,
     summarize_site_status,
 )
@@ -61,6 +63,11 @@ def test_generate_weekly_report_writes_xlsx(tmp_path):
     assert result["ok"] is True
     workbook = load_workbook(result["output_path"])
     assert "05_대시보드" in workbook.sheetnames
+
+
+def test_db_backed_tool_names_exist_for_mcp_surface():
+    assert callable(import_excel_input_to_db)
+    assert callable(generate_weekly_report_from_db)
 
 
 def _load_sample_data() -> dict[str, object]:

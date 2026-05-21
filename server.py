@@ -7,7 +7,9 @@ from tools.calibration_tools import calibrate_completion_date
 from tools.construction_tools import (
     detect_delays,
     generate_weekly_report,
+    generate_weekly_report_from_db,
     input_daily_record,
+    import_excel_input_to_db,
     suggest_recovery,
     summarize_site_status,
 )
@@ -34,6 +36,8 @@ def build_server() -> FastMCP:
     mcp.tool()(detect_delays)
     mcp.tool()(suggest_recovery)
     mcp.tool()(generate_weekly_report)
+    mcp.tool()(import_excel_input_to_db)
+    mcp.tool()(generate_weekly_report_from_db)
     mcp.tool()(summarize_site_status)
     return mcp
 

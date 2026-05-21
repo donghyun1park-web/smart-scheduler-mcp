@@ -29,6 +29,8 @@ def test_build_server_registers_construction_v2_tools():
         "detect_delays",
         "suggest_recovery",
         "generate_weekly_report",
+        "import_excel_input_to_db",
+        "generate_weekly_report_from_db",
         "summarize_site_status",
     }:
         assert tool_name in server._tool_manager._tools

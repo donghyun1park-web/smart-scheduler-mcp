@@ -10,6 +10,12 @@ recovery-plan drafts, a site-manager dashboard summary, and MCP tool wrappers.
 
 - v2 SQLite tables: `daily_records`, `cost_items`, `baseline_snapshots`,
   `materials`, `inspections`, `change_log`, and `project_settings`.
+- Schema version 2 migration for new and existing v1 databases.
+- Korean construction-discipline normalization with English alias support.
+- v2 SQLite CRUD helpers for field records, costs, materials, inspections,
+  change log, project settings, and baselines.
+- openpyxl-based Excel input readers and Excel-to-DB import flow.
+- DB-backed weekly report generation.
 - Progress calculations in `core.progress`.
 - Cost calculations and overrun detection in `core.cost`.
 - Delay detection in `core.delay_detection`.
@@ -44,8 +50,7 @@ See `CHECKPOINT_LOG.md` for exact results by phase.
 ## Known Limitations
 
 - v2 field records are not yet persisted by MCP tool wrappers.
-- Dashboard and weekly report use normalized JSON sample data as the MVP
-  integration shape.
+- Dashboard still uses normalized JSON for the direct Streamlit UI surface.
 - Report style separation exists as an entry point but needs richer templates.
 - Full EVM, BIM, weather API, photo workflow, cloud collaboration, and full user
   authentication are deferred.

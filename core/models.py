@@ -4,11 +4,13 @@ from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any, Literal
 
+from core.disciplines import ALLOWED_DISCIPLINES as DISCIPLINE_CHOICES
+from core.disciplines import validate_discipline
 
-ALLOWED_DISCIPLINES = frozenset({"위생", "공조", "소방", "전기", "자동제어", "공통"})
+ALLOWED_DISCIPLINES = DISCIPLINE_CHOICES
 ALLOWED_REL_TYPES = frozenset({"FS", "SS", "FF"})
 RelType = Literal["FS", "SS", "FF"]
-Discipline = Literal["위생", "공조", "소방", "전기", "자동제어", "공통"]
+Discipline = Literal["위생", "공조", "소방", "전기", "자동제어", "공통", "토목", "건축", "기계설비", "소방설비", "전기설비"]
 
 
 @dataclass(frozen=True)
@@ -55,8 +57,7 @@ class Activity:
     updated_at: str | None = None
 
     def __post_init__(self) -> None:
-        if self.discipline not in ALLOWED_DISCIPLINES:
-            raise ValueError(f"Unsupported discipline for v0.1: {self.discipline}")
+        object.__setattr__(self, "discipline", validate_discipline(self.discipline))
         if self.duration < 0:
             raise ValueError("Activity duration cannot be negative")
 
@@ -162,6 +163,7 @@ class BaselineSnapshot:
     finish_date: date | None
     duration: int
     revision: str
+    project_id: str = ""
     approved_by: str = ""
     created_at: str | None = None
     updated_at: str | None = None

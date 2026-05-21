@@ -5,6 +5,10 @@ from pathlib import Path
 from typing import Any
 
 from core.delay_detection import generate_delay_report
+from core.importer import (
+    generate_weekly_report_from_db as generate_weekly_report_from_db_core,
+    import_field_input_to_db,
+)
 from core.reporting import create_weekly_construction_report
 from core.recovery import format_recovery_report, suggest_recovery_plans
 from core.validation import validate_progress_quantities
@@ -80,6 +84,22 @@ def generate_weekly_report(
     report_style: str = "weekly_meeting",
 ) -> dict[str, object]:
     return create_weekly_construction_report(site_data, output_path, report_style=report_style)
+
+
+def import_excel_input_to_db(
+    db_path: str | Path,
+    input_path: str | Path,
+    project_id: str | None = None,
+) -> dict[str, object]:
+    return import_field_input_to_db(db_path, input_path, project_id=project_id)
+
+
+def generate_weekly_report_from_db(
+    db_path: str | Path,
+    output_path: str | Path,
+    report_style: str = "internal",
+) -> dict[str, object]:
+    return generate_weekly_report_from_db_core(db_path, output_path, report_style=report_style)
 
 
 def summarize_site_status(

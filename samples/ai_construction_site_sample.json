@@ -9,7 +9,7 @@
     {
       "activity_id": "A-100",
       "name": "Normal concrete curing",
-      "discipline": "architecture",
+      "discipline": "건축",
       "zone": "1F",
       "planned_qty": 100,
       "actual_qty": 100,
@@ -26,7 +26,7 @@
     {
       "activity_id": "A-200",
       "name": "Delayed rebar assembly",
-      "discipline": "civil",
+      "discipline": "토목",
       "zone": "B1",
       "planned_qty": 100,
       "actual_qty": 55,
@@ -43,7 +43,7 @@
     {
       "activity_id": "A-210",
       "name": "Concrete pour blocked by predecessor",
-      "discipline": "civil",
+      "discipline": "토목",
       "zone": "B1",
       "planned_qty": 100,
       "actual_qty": 0,
@@ -63,7 +63,7 @@
     {
       "activity_id": "A-300",
       "name": "MEP ceiling framing cost overrun",
-      "discipline": "mechanical",
+      "discipline": "기계설비",
       "zone": "2F",
       "planned_qty": 100,
       "actual_qty": 45,
@@ -84,7 +84,7 @@
     {
       "activity_id": "A-400",
       "name": "Fire pump delivery delay",
-      "discipline": "fire_protection",
+      "discipline": "소방설비",
       "zone": "Machine Room",
       "planned_qty": 1,
       "actual_qty": 0,
@@ -109,7 +109,7 @@
     {
       "activity_id": "A-500",
       "name": "Electrical panel inspection delay",
-      "discipline": "electrical",
+      "discipline": "전기설비",
       "zone": "EPS",
       "planned_qty": 10,
       "actual_qty": 4,

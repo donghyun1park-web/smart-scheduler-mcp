@@ -60,6 +60,24 @@ Report sheets include:
 - `간트 데이터`
 - `07_보고서`
 
+## Excel Input To SQLite
+
+After a field workbook has been filled in, import it into a `.scheduler` DB:
+
+```powershell
+.\.venv\Scripts\python.exe -c "from core.importer import import_field_input_to_db; print(import_field_input_to_db('path\\to\\project.scheduler', 'path\\to\\field_input.xlsx', project_id='project-1'))"
+```
+
+Then generate a DB-backed weekly report:
+
+```powershell
+.\.venv\Scripts\python.exe -c "from core.importer import generate_weekly_report_from_db; print(generate_weekly_report_from_db('path\\to\\project.scheduler', 'path\\to\\weekly_from_db.xlsx'))"
+```
+
+The import flow reads `01_실적입력`, `02_원가입력`, and `03_자재검측`, validates
+sheet/header structure, stores records in v2 SQLite tables, and records an
+import event in `change_log`.
+
 ## Site-Manager Dashboard
 
 Run the dashboard:
@@ -88,6 +106,8 @@ The v2.0 MVP registers these tools:
 - `detect_delays`
 - `suggest_recovery`
 - `generate_weekly_report`
+- `import_excel_input_to_db`
+- `generate_weekly_report_from_db`
 - `summarize_site_status`
 
 `suggest_recovery` returns candidate recovery drafts and assumptions only. Field
@@ -95,10 +115,11 @@ leadership must review and decide whether to apply any plan.
 
 ## Known Limitations
 
-- Daily records are validated and normalized through MCP but are not yet written
-  into SQLite by the tool wrapper.
-- The v2 dashboard reads normalized JSON sample data. Direct SQLite-backed
-  dashboard loading is a follow-up.
+- Daily/cost/material/inspection workbook rows can be imported into SQLite, but
+  conflict resolution is intentionally simple MVP behavior.
+- The v2 dashboard reads normalized JSON sample data. DB-backed dashboard loading
+  is available indirectly through the DB-backed report builder and remains a UI
+  follow-up.
 - Weekly report charts and print layouts are intentionally simple.
 - Full EVM, BIM, weather APIs, photo handling, cloud collaboration, and user
   authentication are outside MVP scope.

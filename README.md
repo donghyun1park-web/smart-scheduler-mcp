@@ -19,6 +19,9 @@ New v2.0 MVP entry points:
 # Generate a weekly construction report from the sample site data.
 .\.venv\Scripts\python.exe -c "import json; from core.reporting import create_weekly_construction_report; data=json.load(open('samples\\ai_construction_site_sample.json', encoding='utf-8')); print(create_weekly_construction_report(data, 'samples\\ai_construction_weekly_report.xlsx'))"
 
+# Import a completed field-input workbook into SQLite and generate a DB-backed report.
+.\.venv\Scripts\python.exe -c "from core.importer import import_field_input_to_db, generate_weekly_report_from_db; print(import_field_input_to_db('path\\to\\project.scheduler', 'path\\to\\field_input.xlsx', project_id='project-1')); print(generate_weekly_report_from_db('path\\to\\project.scheduler', 'path\\to\\weekly_from_db.xlsx'))"
+
 # Run the site-manager dashboard.
 .\.venv\Scripts\python.exe -m streamlit run viewer/pages/08_site_manager_dashboard.py
 ```
@@ -33,6 +36,8 @@ New MCP tools:
 - `detect_delays`
 - `suggest_recovery`
 - `generate_weekly_report`
+- `import_excel_input_to_db`
+- `generate_weekly_report_from_db`
 - `summarize_site_status`
 
 `suggest_recovery` only returns draft/candidate/review-required language. It
