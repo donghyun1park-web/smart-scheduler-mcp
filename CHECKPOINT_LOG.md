@@ -663,3 +663,61 @@ Date: 2026-05-21
 - Smoke testing against the user's actual field DB still needs the real
   `.scheduler` and Excel input files; current smoke evidence uses a generated
   demo DB copy.
+
+## v2.2 PR And Smoke Preparation
+
+Date: 2026-05-21
+
+### Changed Files
+
+- `docs/PR_DESCRIPTION_v2.md`
+- `docs/PR_READY_REPORT_v2_2.md`
+- `docs/REAL_DB_SMOKE_TEST_GUIDE_v2_2.md`
+- `docs/V2_3_CANDIDATE_PLAN.md`
+
+### Implemented
+
+- Rechecked repository state on branch `feature/ai-construction-scheduler-v2`
+  at commit `b1678a7`.
+- Re-ran quality gates and recorded results for PR readiness.
+- Rewrote the PR body with required sections for summary, why, v0.1-to-v2.2
+  changes, migration notice, 18 MCP tools, quality gates, real DB smoke test,
+  compatibility, merge recommendation, and v2.3 candidates.
+- Added a real DB smoke-test guide that emphasizes copied DB files only.
+- Added v2.3 candidate planning without starting v2.3 implementation.
+- Verified smoke script `--help` and ran the script against a generated demo DB
+  copy under `C:\tmp\smart_scheduler_pr_smoke_v2_2`.
+
+### Commands Run
+
+```powershell
+git status --short --branch
+git branch --show-current
+git rev-parse --short HEAD
+git log --oneline -4
+git diff --stat main...HEAD
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m mypy .
+.\.venv\Scripts\python.exe scripts\smoke_test_real_scheduler.py --help
+.\.venv\Scripts\python.exe scripts\smoke_test_real_scheduler.py --db C:\tmp\smart_scheduler_pr_smoke_v2_2\demo.scheduler --excel C:\tmp\smart_scheduler_pr_smoke_v2_2\field.xlsx --out-dir C:\tmp\smart_scheduler_pr_smoke_v2_2\outputs
+.\.venv\Scripts\python.exe -c "from server import build_server; tools=sorted(build_server()._tool_manager._tools); print(len(tools)); print('\n'.join(tools))"
+git diff --check
+git grep -nP "[\x{202A}-\x{202E}\x{2066}-\x{2069}]"
+```
+
+### Test Result
+
+- `pytest -q`: `153 passed`
+- `ruff check .`: `All checks passed!`
+- `mypy .`: `Success: no issues found in 114 source files`
+- MCP tool count: `18`
+- Demo smoke run: `ok=true`, `original_unchanged=true`,
+  `forbidden_word_violations=[]`
+- Bidi Unicode grep: no matches
+
+### Remaining Risks
+
+- Push/PR creation depends on remote/GitHub authentication and network access.
+- Actual field DB smoke testing still requires the user to provide a real
+  `.scheduler` DB and optional Excel input file.
