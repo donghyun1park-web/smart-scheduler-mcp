@@ -721,3 +721,79 @@ git grep -nP "[\x{202A}-\x{202E}\x{2066}-\x{2069}]"
 - Push/PR creation depends on remote/GitHub authentication and network access.
 - Actual field DB smoke testing still requires the user to provide a real
   `.scheduler` DB and optional Excel input file.
+
+## v2.3 MCP Import, EVM, And Relationship Inference
+
+Date: 2026-05-21
+
+### Changed Files
+
+- `tools/import_tools.py`
+- `tools/cost_tools.py`
+- `tools/relationship_tools.py`
+- `core/relationship_inference.py`
+- `server.py`
+- `scripts/create_sample_db.py`
+- `tests/test_import_tools_v2_3.py`
+- `tests/test_cost_tools_v2_3.py`
+- `tests/test_relationship_inference_v2_3.py`
+- `tests/test_relationship_tools_v2_3.py`
+- `tests/test_server_tools_v2_3.py`
+- `docs/PR_DESCRIPTION_v2_3.md`
+
+### Implemented
+
+- Added dry-run-first MCP wrappers for `import_schedule_excel` and
+  `import_budget_excel`, delegating to existing v2.3 importers.
+- Added cost-progress MCP tools for EVM snapshot, chart-ready S-curve rows, and
+  discipline-level summary.
+- Added rule-based relationship inference and explicit apply flow with duplicate,
+  self, unknown-activity, and cycle protection.
+- Registered all seven new v2.3 MCP tools in `server.py`.
+- Fixed direct `python scripts\create_sample_db.py --output ...` execution by
+  resolving the repository root before importing `core`.
+- Added PR #8 description draft and sample DB smoke evidence.
+
+### Commands Run
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_import_tools_v2_3.py tests/test_cost_tools_v2_3.py tests/test_relationship_inference_v2_3.py tests/test_relationship_tools_v2_3.py tests/test_server_tools_v2_3.py -q
+.\.venv\Scripts\python.exe -m pytest tests/test_import_tools.py tests/test_evm.py tests/test_cost.py tests/test_analysis_tools.py tests/test_server.py tests/test_import_tools_v2_3.py tests/test_cost_tools_v2_3.py tests/test_relationship_inference_v2_3.py tests/test_relationship_tools_v2_3.py tests/test_server_tools_v2_3.py -q
+.\.venv\Scripts\python.exe scripts\create_sample_db.py --help
+.\.venv\Scripts\python.exe scripts\create_sample_db.py --output samples\v2_3_sample.scheduler
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m mypy .
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+### Test Result
+
+- New v2.3 tests before implementation: failed as expected with missing
+  `import_schedule_excel`, `import_budget_excel`, `tools.cost_tools`,
+  `core.relationship_inference`, and `tools.relationship_tools`.
+- New v2.3 focused tests after implementation: `11 passed`.
+- Related quick regression bundle: `24 passed`.
+- Sample DB smoke: `activities=46`, `cost_items=45`, `relationships_before=0`,
+  `relationship_suggestions=45`, `relationships_after_apply=45`,
+  `cycle_validation=pass`, `evm_ok=true`, `scurve_rows=3`,
+  `discipline_rows=6`.
+- `ruff check .`: `All checks passed!`.
+- `mypy .`: `Success: no issues found in 127 source files`.
+- Full suite: `193 passed, 16 warnings in 446.75s`.
+
+### Failures And Fixes
+
+- Failure: dry-run schedule import succeeded but Windows temp cleanup raised
+  `[WinError 32]` for the temporary SQLite file.
+- Fix: use `TemporaryDirectory(ignore_cleanup_errors=True)` for dry-run DB
+  copies.
+- Failure: direct `python scripts\create_sample_db.py --output ...` could not
+  import `core`.
+- Fix: insert the repository root into `sys.path` at script startup.
+
+### Remaining Risks
+
+- Relationship inference is a v2.3 initial rule set and still requires field
+  review before applying to real project DBs.
+- EVM S-curve uses DB-available daily records when present; otherwise it marks
+  planned progress as a temporary proxy for missing actual progress.

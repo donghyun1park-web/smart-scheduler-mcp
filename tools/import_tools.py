@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
@@ -8,7 +10,10 @@ from typing import Any
 from openpyxl import load_workbook
 
 from core import db
+from core.backup import create_backup
+from core.budget_importer import import_budgets_to_db
 from core.models import Activity, Relationship, WBS
+from core.schedule_importer import import_schedule_to_db
 from core.validation import (
     ValidationError,
     optional_float,
@@ -20,6 +25,129 @@ from core.validation import (
 
 DEFAULT_PRESETS_DIR = Path("presets")
 REQUIRED_COLUMNS = ("code", "name", "duration")
+
+
+def import_schedule_excel(
+    db_path: str,
+    excel_path: str,
+    *,
+    project_id: str | None = None,
+    dry_run: bool = True,
+    backup_before_import: bool = True,
+) -> dict[str, object]:
+    """Import a construction schedule Excel into a .scheduler DB.
+
+    The default is a dry run. In dry-run mode this function imports into a
+    temporary DB copy and never creates or mutates the requested DB path.
+    """
+    db_file = Path(db_path)
+    excel_file = Path(excel_path)
+    if not excel_file.is_file():
+        return _import_error(
+            f"Excel 파일을 찾을 수 없습니다: {excel_file}",
+            db_file,
+            excel_file,
+            dry_run=dry_run,
+        )
+
+    backup_path: str | None = None
+    try:
+        with _import_target(db_file, dry_run=dry_run) as target_db:
+            if not dry_run and backup_before_import and db_file.is_file():
+                backup = create_backup(db_file, reason="v2.3-schedule-import")
+                backup_path = str(backup.backup_path)
+            core_result = import_schedule_to_db(
+                target_db,
+                excel_file,
+                project_id=project_id,
+            )
+    except Exception as exc:  # noqa: BLE001 - MCP tools should return structured errors.
+        return _import_error(
+            f"공정표 Excel import 중 오류가 발생했습니다: {exc}",
+            db_file,
+            excel_file,
+            dry_run=dry_run,
+        )
+
+    return _normalize_import_result(
+        core_result,
+        db_file,
+        excel_file,
+        dry_run=dry_run,
+        project_id=project_id or _text_or_none(core_result.get("project_id")),
+        imported={
+            "activities": int(core_result.get("activity_count", 0) or 0),
+            "wbs": int(core_result.get("wbs_count", 0) or 0),
+            "cost_items": 0,
+            "relationships": int(core_result.get("relationship_count", 0) or 0),
+        },
+        backup_path=backup_path,
+    )
+
+
+def import_budget_excel(
+    db_path: str,
+    excel_path: str,
+    *,
+    project_id: str | None = None,
+    dry_run: bool = True,
+    backup_before_import: bool = True,
+) -> dict[str, object]:
+    """Import an execution-budget Excel into a .scheduler DB.
+
+    The wrapper accepts a single Excel path for MCP ergonomics and delegates to
+    the existing multi-file budget importer.
+    """
+    db_file = Path(db_path)
+    excel_file = Path(excel_path)
+    if not excel_file.is_file():
+        return _import_error(
+            f"Excel 파일을 찾을 수 없습니다: {excel_file}",
+            db_file,
+            excel_file,
+            dry_run=dry_run,
+        )
+    if not dry_run and not db_file.is_file():
+        return _import_error(
+            f".scheduler DB 파일을 찾을 수 없습니다: {db_file}",
+            db_file,
+            excel_file,
+            dry_run=dry_run,
+        )
+
+    backup_path: str | None = None
+    try:
+        with _import_target(db_file, dry_run=dry_run) as target_db:
+            if not dry_run and backup_before_import and db_file.is_file():
+                backup = create_backup(db_file, reason="v2.3-budget-import")
+                backup_path = str(backup.backup_path)
+            core_result = import_budgets_to_db(
+                target_db,
+                [excel_file],
+                project_id=project_id,
+            )
+    except Exception as exc:  # noqa: BLE001 - MCP tools should return structured errors.
+        return _import_error(
+            f"실행예산 Excel import 중 오류가 발생했습니다: {exc}",
+            db_file,
+            excel_file,
+            dry_run=dry_run,
+        )
+
+    return _normalize_import_result(
+        core_result,
+        db_file,
+        excel_file,
+        dry_run=dry_run,
+        project_id=project_id,
+        imported={
+            "activities": 0,
+            "wbs": 0,
+            "cost_items": int(core_result.get("cost_items_created", 0) or 0),
+            "relationships": 0,
+        },
+        backup_path=backup_path,
+    )
 
 
 def save_column_mapping_preset(
@@ -43,6 +171,94 @@ def load_column_mapping_preset(
 ) -> dict[str, Any]:
     path = Path(presets_dir) / f"{preset_name}.json"
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+class _ImportTarget:
+    def __init__(self, db_path: Path, *, dry_run: bool) -> None:
+        self.db_path = db_path
+        self.dry_run = dry_run
+        self._tmpdir: tempfile.TemporaryDirectory[str] | None = None
+        self.target_path = db_path
+
+    def __enter__(self) -> Path:
+        if not self.dry_run:
+            return self.db_path
+        self._tmpdir = tempfile.TemporaryDirectory(
+            prefix="smart_scheduler_import_",
+            ignore_cleanup_errors=True,
+        )
+        target_name = self.db_path.name or "dry_run.scheduler"
+        self.target_path = Path(self._tmpdir.name) / target_name
+        if self.db_path.is_file():
+            shutil.copy2(self.db_path, self.target_path)
+        return self.target_path
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        if self._tmpdir is not None:
+            self._tmpdir.cleanup()
+
+
+def _import_target(db_path: Path, *, dry_run: bool) -> _ImportTarget:
+    return _ImportTarget(db_path, dry_run=dry_run)
+
+
+def _import_error(
+    message: str,
+    db_path: Path,
+    excel_path: Path,
+    *,
+    dry_run: bool,
+) -> dict[str, object]:
+    return {
+        "ok": False,
+        "dry_run": dry_run,
+        "db_path": str(db_path),
+        "excel_path": str(excel_path),
+        "error": message,
+        "warnings": [],
+        "errors": [message],
+    }
+
+
+def _normalize_import_result(
+    core_result: dict[str, Any],
+    db_path: Path,
+    excel_path: Path,
+    *,
+    dry_run: bool,
+    project_id: str | None,
+    imported: dict[str, int],
+    backup_path: str | None,
+) -> dict[str, object]:
+    warnings = [str(item) for item in core_result.get("warnings", [])]
+    errors = [str(item) for item in core_result.get("errors", [])]
+    ok = bool(core_result.get("ok", not errors))
+    result: dict[str, object] = {
+        "ok": ok,
+        "dry_run": dry_run,
+        "db_path": str(db_path),
+        "excel_path": str(excel_path),
+        "project_id": project_id,
+        "imported": imported,
+        "created_ids": list(core_result.get("created_ids", [])),
+        "updated_ids": list(core_result.get("updated_ids", [])),
+        "warnings": warnings,
+        "errors": errors,
+    }
+    if backup_path:
+        result["backup_path"] = backup_path
+    if not ok and errors:
+        result["error"] = errors[0]
+    elif not ok:
+        result["error"] = str(core_result.get("error") or "Import failed.")
+    return result
+
+
+def _text_or_none(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def import_excel(

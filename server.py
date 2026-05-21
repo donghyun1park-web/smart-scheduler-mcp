@@ -14,9 +14,11 @@ from tools.construction_tools import (
     suggest_recovery,
     summarize_site_status,
 )
+from tools.cost_tools import analyze_evm_from_db, get_evm_s_curve_data, summarize_cost_by_discipline
 from tools.field_uat_tools import run_field_uat_workflow
-from tools.import_tools import import_excel
+from tools.import_tools import import_budget_excel, import_excel, import_schedule_excel
 from tools.project_tools import create_project, list_projects, load_project
+from tools.relationship_tools import generate_activity_relationships, suggest_activity_relationships
 from tools.report_tools import generate_report
 from tools.sequence_tools import apply_sequences
 
@@ -27,9 +29,16 @@ def build_server() -> FastMCP:
     mcp.tool()(load_project)
     mcp.tool()(create_project)
     mcp.tool()(import_excel)
+    mcp.tool()(import_schedule_excel)
+    mcp.tool()(import_budget_excel)
     mcp.tool()(apply_sequences)
     mcp.tool()(calculate_cpm)
     mcp.tool()(get_critical_path)
+    mcp.tool()(analyze_evm_from_db)
+    mcp.tool()(get_evm_s_curve_data)
+    mcp.tool()(summarize_cost_by_discipline)
+    mcp.tool()(suggest_activity_relationships)
+    mcp.tool()(generate_activity_relationships)
     mcp.tool()(generate_report)
     mcp.tool()(calibrate_completion_date)
     mcp.tool()(run_field_uat_workflow)
