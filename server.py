@@ -15,7 +15,36 @@ from tools.construction_tools import (
     summarize_site_status,
 )
 from tools.billing_tools import apply_billing, billing_s_curve, billing_summary, calculate_billing
-from tools.cost_tools import analyze_evm_from_db, get_evm_s_curve_data, summarize_cost_by_discipline
+from tools.cashflow_tools import (
+    forecast_project_cash_flow,
+    get_funding_requirements,
+    get_retention_release_schedule,
+)
+from tools.delay_tools import (
+    analyze_delays,
+    calculate_time_extension_claim,
+    list_delay_events_tool,
+    record_delay_event,
+)
+from tools.productivity_tools import (
+    analyze_productivity,
+    get_productivity_trend,
+)
+from tools.change_order_tools import (
+    add_change_order_item,
+    create_change_order,
+    get_change_order_impact,
+    get_change_order_summary,
+    list_change_orders_tool,
+    update_change_order_status,
+)
+from tools.cost_tools import (
+    analyze_budget_variance,
+    analyze_evm_from_db,
+    forecast_cost_scenarios,
+    get_evm_s_curve_data,
+    summarize_cost_by_discipline,
+)
 from tools.diagnostic_tools import (
     check_data_health,
     explain_evm_from_db,
@@ -92,6 +121,28 @@ def build_server() -> FastMCP:
     mcp.tool()(list_inspections_tool)
     mcp.tool()(update_inspection)
     mcp.tool()(get_activity_logistics)
+    # v2.6: Cash flow
+    mcp.tool()(forecast_project_cash_flow)
+    mcp.tool()(get_funding_requirements)
+    mcp.tool()(get_retention_release_schedule)
+    # v2.6: Budget variance
+    mcp.tool()(analyze_budget_variance)
+    mcp.tool()(forecast_cost_scenarios)
+    # v2.7: Delay analysis
+    mcp.tool()(record_delay_event)
+    mcp.tool()(list_delay_events_tool)
+    mcp.tool()(analyze_delays)
+    mcp.tool()(calculate_time_extension_claim)
+    # v2.7: Productivity
+    mcp.tool()(analyze_productivity)
+    mcp.tool()(get_productivity_trend)
+    # v2.8: Change order management
+    mcp.tool()(create_change_order)
+    mcp.tool()(add_change_order_item)
+    mcp.tool()(update_change_order_status)
+    mcp.tool()(list_change_orders_tool)
+    mcp.tool()(get_change_order_impact)
+    mcp.tool()(get_change_order_summary)
     # v2.5: Operations center diagnostics
     mcp.tool()(check_data_health)
     mcp.tool()(suggest_next_actions)
