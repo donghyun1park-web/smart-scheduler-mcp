@@ -15,8 +15,11 @@ from core.models import (
     BaselineSnapshot,
     Calendar,
     ChangeLogEntry,
+    ChangeOrder,
+    ChangeOrderItem,
     CostItem,
     DailyRecord,
+    DelayEvent,
     InspectionRecord,
     MaterialRecord,
     Project,
@@ -187,6 +190,51 @@ def initialize_database(path: str | Path) -> None:
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY (project_id) REFERENCES projects(project_id)
             );
+            CREATE TABLE IF NOT EXISTS change_orders (
+                co_id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                co_type TEXT NOT NULL DEFAULT 'scope_addition',
+                status TEXT NOT NULL DEFAULT 'draft',
+                requested_by TEXT NOT NULL DEFAULT '',
+                approved_by TEXT NOT NULL DEFAULT '',
+                request_date TEXT,
+                approval_date TEXT,
+                direct_cost REAL NOT NULL DEFAULT 0,
+                markup_pct REAL NOT NULL DEFAULT 0,
+                total_cost REAL NOT NULL DEFAULT 0,
+                schedule_impact_days INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS change_order_items (
+                co_item_id TEXT PRIMARY KEY,
+                co_id TEXT NOT NULL,
+                activity_id TEXT NOT NULL,
+                cost_change REAL NOT NULL DEFAULT 0,
+                duration_change INTEGER NOT NULL DEFAULT 0,
+                description TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (co_id) REFERENCES change_orders(co_id),
+                FOREIGN KEY (activity_id) REFERENCES activities(activity_id)
+            );
+            CREATE TABLE IF NOT EXISTS delay_events (
+                delay_event_id TEXT PRIMARY KEY,
+                activity_id TEXT NOT NULL,
+                delay_type TEXT NOT NULL DEFAULT 'non_excusable',
+                cause_code TEXT NOT NULL DEFAULT 'other',
+                responsible_party TEXT NOT NULL DEFAULT '',
+                start_date TEXT,
+                end_date TEXT,
+                delay_days INTEGER NOT NULL DEFAULT 0,
+                cost_impact REAL NOT NULL DEFAULT 0,
+                description TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'open',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (activity_id) REFERENCES activities(activity_id)
+            );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_cost_items_activity_unique
                 ON cost_items(activity_id);
             CREATE INDEX IF NOT EXISTS idx_activities_wbs_id ON activities(wbs_id);
@@ -209,6 +257,18 @@ def initialize_database(path: str | Path) -> None:
                 ON project_settings(project_id);
             CREATE INDEX IF NOT EXISTS idx_baseline_snapshots_project_id
                 ON baseline_snapshots(project_id);
+            CREATE INDEX IF NOT EXISTS idx_change_orders_status
+                ON change_orders(status);
+            CREATE INDEX IF NOT EXISTS idx_co_items_co_id
+                ON change_order_items(co_id);
+            CREATE INDEX IF NOT EXISTS idx_co_items_activity
+                ON change_order_items(activity_id);
+            CREATE INDEX IF NOT EXISTS idx_delay_events_activity
+                ON delay_events(activity_id);
+            CREATE INDEX IF NOT EXISTS idx_delay_events_type
+                ON delay_events(delay_type);
+            CREATE INDEX IF NOT EXISTS idx_delay_events_status
+                ON delay_events(status);
             """
         )
         row = conn.execute("SELECT version FROM schema_version").fetchone()
@@ -961,6 +1021,187 @@ def load_project_summary(path: str | Path) -> dict[str, object]:
     }
 
 
+# ---------------------------------------------------------------------------
+# Change orders CRUD
+# ---------------------------------------------------------------------------
+
+
+def create_change_order(path: str | Path, co: ChangeOrder) -> ChangeOrder:
+    stamped = _stamp(co)
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            INSERT INTO change_orders(
+                co_id, title, description, co_type, status,
+                requested_by, approved_by, request_date, approval_date,
+                direct_cost, markup_pct, total_cost, schedule_impact_days,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                stamped.co_id, stamped.title, stamped.description,
+                stamped.co_type, stamped.status,
+                stamped.requested_by, stamped.approved_by,
+                stamped.request_date.isoformat() if stamped.request_date else None,
+                stamped.approval_date.isoformat() if stamped.approval_date else None,
+                stamped.direct_cost, stamped.markup_pct, stamped.total_cost,
+                stamped.schedule_impact_days,
+                stamped.created_at, stamped.updated_at,
+            ),
+        )
+    return stamped
+
+
+def list_change_orders(
+    path: str | Path,
+    *,
+    status: str | None = None,
+    co_type: str | None = None,
+) -> list[ChangeOrder]:
+    rows = _select_with_optional_filters(
+        path, "change_orders",
+        {"status": status, "co_type": co_type},
+        "created_at DESC",
+    )
+    return [_change_order_from_row(row) for row in rows]
+
+
+def get_change_order(path: str | Path, co_id: str) -> ChangeOrder | None:
+    with _connect(path) as conn:
+        row = conn.execute(
+            "SELECT * FROM change_orders WHERE co_id = ?", (co_id,),
+        ).fetchone()
+    return _change_order_from_row(row) if row else None
+
+
+def update_change_order_status(
+    path: str | Path,
+    co_id: str,
+    *,
+    status: str,
+    approved_by: str = "",
+    approval_date: date | None = None,
+) -> ChangeOrder:
+    timestamp = _now()
+    with _connect(path) as conn:
+        params: list[object] = [status, approved_by, timestamp, co_id]
+        sql = "UPDATE change_orders SET status = ?, approved_by = ?, updated_at = ?"
+        if approval_date:
+            sql += ", approval_date = ?"
+            params = [status, approved_by, timestamp, approval_date.isoformat(), co_id]
+        sql += " WHERE co_id = ?"
+        conn.execute(sql, tuple(params))
+        row = conn.execute(
+            "SELECT * FROM change_orders WHERE co_id = ?", (co_id,),
+        ).fetchone()
+    if not row:
+        raise ValueError(f"Change order not found: {co_id}")
+    return _change_order_from_row(row)
+
+
+def create_change_order_item(path: str | Path, item: ChangeOrderItem) -> ChangeOrderItem:
+    stamped = _stamp(item)
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            INSERT INTO change_order_items(
+                co_item_id, co_id, activity_id, cost_change,
+                duration_change, description, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                stamped.co_item_id, stamped.co_id, stamped.activity_id,
+                stamped.cost_change, stamped.duration_change, stamped.description,
+                stamped.created_at, stamped.updated_at,
+            ),
+        )
+    return stamped
+
+
+def list_change_order_items(
+    path: str | Path,
+    co_id: str,
+) -> list[ChangeOrderItem]:
+    with _connect(path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM change_order_items WHERE co_id = ? ORDER BY created_at",
+            (co_id,),
+        ).fetchall()
+    return [_change_order_item_from_row(row) for row in rows]
+
+
+# ---------------------------------------------------------------------------
+# Delay events CRUD
+# ---------------------------------------------------------------------------
+
+
+def create_delay_event(path: str | Path, event: DelayEvent) -> DelayEvent:
+    stamped = _stamp(event)
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            INSERT INTO delay_events(
+                delay_event_id, activity_id, delay_type, cause_code,
+                responsible_party, start_date, end_date, delay_days,
+                cost_impact, description, status, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                stamped.delay_event_id,
+                stamped.activity_id,
+                stamped.delay_type,
+                stamped.cause_code,
+                stamped.responsible_party,
+                stamped.start_date.isoformat() if stamped.start_date else None,
+                stamped.end_date.isoformat() if stamped.end_date else None,
+                stamped.delay_days,
+                stamped.cost_impact,
+                stamped.description,
+                stamped.status,
+                stamped.created_at,
+                stamped.updated_at,
+            ),
+        )
+    return stamped
+
+
+def list_delay_events(
+    path: str | Path,
+    *,
+    activity_id: str | None = None,
+    delay_type: str | None = None,
+    status: str | None = None,
+) -> list[DelayEvent]:
+    rows = _select_with_optional_filters(
+        path,
+        "delay_events",
+        {"activity_id": activity_id, "delay_type": delay_type, "status": status},
+        "created_at DESC",
+    )
+    return [_delay_event_from_row(row) for row in rows]
+
+
+def update_delay_event_status(
+    path: str | Path,
+    delay_event_id: str,
+    *,
+    status: str,
+) -> DelayEvent:
+    timestamp = _now()
+    with _connect(path) as conn:
+        conn.execute(
+            "UPDATE delay_events SET status = ?, updated_at = ? WHERE delay_event_id = ?",
+            (status, timestamp, delay_event_id),
+        )
+        row = conn.execute(
+            "SELECT * FROM delay_events WHERE delay_event_id = ?",
+            (delay_event_id,),
+        ).fetchone()
+    if not row:
+        raise ValueError(f"Delay event not found: {delay_event_id}")
+    return _delay_event_from_row(row)
+
+
 def _connect(path: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(Path(path))
     conn.row_factory = sqlite3.Row
@@ -1224,6 +1465,57 @@ def _baseline_snapshot_from_row(row: sqlite3.Row) -> BaselineSnapshot:
         revision=row["revision"],
         project_id=row["project_id"],
         approved_by=row["approved_by"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _change_order_from_row(row: sqlite3.Row) -> ChangeOrder:
+    return ChangeOrder(
+        co_id=row["co_id"],
+        title=row["title"],
+        description=row["description"],
+        co_type=row["co_type"],
+        status=row["status"],
+        requested_by=row["requested_by"],
+        approved_by=row["approved_by"],
+        request_date=_parse_date(row["request_date"]),
+        approval_date=_parse_date(row["approval_date"]),
+        direct_cost=row["direct_cost"],
+        markup_pct=row["markup_pct"],
+        total_cost=row["total_cost"],
+        schedule_impact_days=row["schedule_impact_days"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _change_order_item_from_row(row: sqlite3.Row) -> ChangeOrderItem:
+    return ChangeOrderItem(
+        co_item_id=row["co_item_id"],
+        co_id=row["co_id"],
+        activity_id=row["activity_id"],
+        cost_change=row["cost_change"],
+        duration_change=row["duration_change"],
+        description=row["description"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _delay_event_from_row(row: sqlite3.Row) -> DelayEvent:
+    return DelayEvent(
+        delay_event_id=row["delay_event_id"],
+        activity_id=row["activity_id"],
+        delay_type=row["delay_type"],
+        cause_code=row["cause_code"],
+        responsible_party=row["responsible_party"],
+        start_date=_parse_date(row["start_date"]),
+        end_date=_parse_date(row["end_date"]),
+        delay_days=row["delay_days"],
+        cost_impact=row["cost_impact"],
+        description=row["description"],
+        status=row["status"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )

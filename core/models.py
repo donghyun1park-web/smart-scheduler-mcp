@@ -226,6 +226,109 @@ class ProjectSettings:
     updated_at: str | None = None
 
 
+@dataclass(frozen=True)
+class DelayEvent:
+    delay_event_id: str
+    activity_id: str
+    delay_type: str = "non_excusable"
+    cause_code: str = "other"
+    responsible_party: str = ""
+    start_date: date | None = None
+    end_date: date | None = None
+    delay_days: int = 0
+    cost_impact: float = 0.0
+    description: str = ""
+    status: str = "open"
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class ChangeOrder:
+    co_id: str
+    title: str
+    description: str = ""
+    co_type: str = "scope_addition"
+    status: str = "draft"
+    requested_by: str = ""
+    approved_by: str = ""
+    request_date: date | None = None
+    approval_date: date | None = None
+    direct_cost: float = 0.0
+    markup_pct: float = 0.0
+    total_cost: float = 0.0
+    schedule_impact_days: int = 0
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class ChangeOrderItem:
+    co_item_id: str
+    co_id: str
+    activity_id: str
+    cost_change: float = 0.0
+    duration_change: int = 0
+    description: str = ""
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+CO_TYPES = frozenset({
+    "scope_addition", "design_change", "owner_directed",
+    "field_condition", "value_engineering",
+})
+
+CO_STATUSES = frozenset({"draft", "pending", "approved", "rejected"})
+
+CO_TYPE_KR: dict[str, str] = {
+    "scope_addition": "범위 추가",
+    "design_change": "설계변경",
+    "owner_directed": "발주처 지시",
+    "field_condition": "현장 조건 변경",
+    "value_engineering": "VE 제안",
+}
+
+CO_STATUS_KR: dict[str, str] = {
+    "draft": "초안",
+    "pending": "검토중",
+    "approved": "승인",
+    "rejected": "반려",
+}
+
+
+DELAY_TYPES = frozenset({
+    "excusable_compensable",
+    "excusable_non_compensable",
+    "non_excusable",
+    "concurrent",
+})
+
+DELAY_CAUSES = frozenset({
+    "owner_change", "design_error", "weather", "material_delay",
+    "labor_shortage", "permit_delay", "site_condition", "subcontractor", "other",
+})
+
+DELAY_TYPE_KR: dict[str, str] = {
+    "excusable_compensable": "면책보상가능",
+    "excusable_non_compensable": "면책보상불가",
+    "non_excusable": "비면책",
+    "concurrent": "동시지연",
+}
+
+DELAY_CAUSE_KR: dict[str, str] = {
+    "owner_change": "발주처 변경",
+    "design_error": "설계 오류",
+    "weather": "기상 영향",
+    "material_delay": "자재 지연",
+    "labor_shortage": "인력 부족",
+    "permit_delay": "인허가 지연",
+    "site_condition": "현장 조건",
+    "subcontractor": "협력업체",
+    "other": "기타",
+}
+
+
 def with_timestamps(model, created_at: str | None = None, updated_at: str | None = None):
     return replace(
         model,
