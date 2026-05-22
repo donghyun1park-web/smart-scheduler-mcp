@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 
 from core import db
+from core.cost import analyze_budget_variance as _analyze_budget_variance
+from core.cost import forecast_scenarios as _forecast_scenarios
 from core.evm import calculate_evm_totals
 from core.models import Activity, CostItem
 from core.number_utils import percentage, to_float
@@ -244,3 +246,59 @@ def _parse_date(value: str | None) -> date | None:
     if value is None or not str(value).strip():
         return None
     return date.fromisoformat(str(value))
+
+
+# ---------------------------------------------------------------------------
+# Budget variance tools (v2.6)
+# ---------------------------------------------------------------------------
+
+
+def analyze_budget_variance(
+    db_path: str,
+    *,
+    discipline: str | None = None,
+    as_of_date: str | None = None,
+) -> dict[str, object]:
+    """Analyze budget vs actual cost variance with status classification.
+
+    Parameters
+    ----------
+    db_path : path to the .scheduler file
+    discipline : 공종 필터 (optional)
+    as_of_date : 기준일 (YYYY-MM-DD), 미지정 시 오늘
+
+    Returns per-activity variance (절감/정상/초과/위험), discipline rollup, overall summary.
+    Status thresholds: 절감(>+5%), 정상(±5%), 초과(-5%~-15%), 위험(<-15%)
+    """
+    parsed_date = _parse_date(as_of_date)
+    return _analyze_budget_variance(
+        db_path,
+        discipline=discipline,
+        as_of_date=parsed_date,
+    )
+
+
+def forecast_cost_scenarios(
+    db_path: str,
+    *,
+    discipline: str | None = None,
+    optimistic_factor: float = 0.95,
+    pessimistic_factor: float = 1.15,
+) -> dict[str, object]:
+    """Generate three EAC (Estimate At Completion) forecast scenarios.
+
+    Parameters
+    ----------
+    db_path : path to the .scheduler file
+    discipline : 공종 필터 (optional)
+    optimistic_factor : 낙관 시나리오 배율 (기본 0.95 = 5% 절감)
+    pessimistic_factor : 비관 시나리오 배율 (기본 1.15 = 15% 증가)
+
+    Returns 낙관/현실/비관 3개 시나리오의 예상 준공원가.
+    """
+    return _forecast_scenarios(
+        db_path,
+        discipline=discipline,
+        optimistic_factor=optimistic_factor,
+        pessimistic_factor=pessimistic_factor,
+    )
