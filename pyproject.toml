@@ -28,6 +28,9 @@ test = [
   "python-dotenv>=1.0",
 ]
 
+[tool.setuptools.packages.find]
+include = ["core*", "tools*", "viewer*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
