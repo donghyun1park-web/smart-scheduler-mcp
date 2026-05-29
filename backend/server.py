@@ -32,6 +32,7 @@ from tools.productivity_tools import (
 )
 from tools.change_order_tools import (
     add_change_order_item,
+    apply_change_order,
     create_change_order,
     get_change_order_impact,
     get_change_order_summary,
@@ -140,6 +141,7 @@ def build_server() -> FastMCP:
     mcp.tool()(create_change_order)
     mcp.tool()(add_change_order_item)
     mcp.tool()(update_change_order_status)
+    mcp.tool()(apply_change_order)
     mcp.tool()(list_change_orders_tool)
     mcp.tool()(get_change_order_impact)
     mcp.tool()(get_change_order_summary)

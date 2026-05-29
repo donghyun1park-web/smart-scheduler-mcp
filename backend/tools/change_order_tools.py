@@ -130,3 +130,28 @@ def get_change_order_summary(
     from core.change_order import get_co_summary
 
     return get_co_summary(db_path)
+
+
+def apply_change_order(
+    db_path: str,
+    co_id: str,
+    applied_by: str = "",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """승인된 변경지시를 activities·cost_items에 실반영합니다.
+
+    반드시 status='approved' 상태의 CO에만 적용 가능합니다.
+    각 세부항목의 공기 변동(duration_change)과 원가 변동(cost_change)이
+    해당 activity와 cost_item에 직접 반영됩니다.
+
+    dry_run=True(기본값)이면 변경 내용 미리보기만 반환합니다.
+    실제 반영은 dry_run=False로 명시적으로 지정해야 합니다.
+    """
+    from core.change_order import apply_change_order_in_db
+
+    return apply_change_order_in_db(
+        db_path,
+        co_id,
+        applied_by=applied_by,
+        dry_run=dry_run,
+    )

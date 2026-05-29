@@ -15,7 +15,7 @@ pytest                                          # 전체 테스트 (실행예산
 ## Architecture
 
 ```
-server.py              ← MCP 서버 진입점 (59 tools)
+server.py              ← MCP 서버 진입점 (60 tools)
 core/                  ← 비즈니스 로직
   db.py                  SQLite .scheduler 파일 (SCHEMA_VERSION=2, 3 new tables)
   models.py              dataclass: Project, Activity, CostItem, DelayEvent, ChangeOrder, etc.
@@ -90,7 +90,7 @@ scripts/
 **Budget Variance (v2.6)**: analyze_budget_variance, forecast_cost_scenarios
 **Delay Analysis (v2.7)**: record_delay_event, list_delay_events_tool, analyze_delays, calculate_time_extension_claim
 **Productivity (v2.7)**: analyze_productivity, get_productivity_trend
-**Change Orders (v2.8)**: create_change_order, add_change_order_item, update_change_order_status, list_change_orders_tool, get_change_order_impact, get_change_order_summary
+**Change Orders (v2.8)**: create_change_order, add_change_order_item, update_change_order_status, apply_change_order, list_change_orders_tool, get_change_order_impact, get_change_order_summary
 **Other**: apply_sequences, generate_report, calibrate_completion_date, run_field_uat_workflow
 
 ### AI Usage Guide
@@ -103,7 +103,8 @@ scripts/
 - 예산관리는 `analyze_budget_variance`로 공종별 차이를 분석하고, `forecast_cost_scenarios`로 EAC 시나리오를 본다.
 - 공기지연은 `record_delay_event`로 기록 후, `analyze_delays`로 유형/원인별 집계, `calculate_time_extension_claim`으로 클레임을 산출한다.
 - 생산성은 `analyze_productivity`로 활동별/공종별 지수를 확인하고, `get_productivity_trend`로 추세를 본다.
-- 설계변경은 `create_change_order` → `add_change_order_item` → `update_change_order_status` 순서로 처리하고, `get_change_order_summary`로 전체 현황을 본다.
+- 설계변경은 `create_change_order` → `add_change_order_item` → `update_change_order_status`(pending→approved) → `apply_change_order`(dry_run=False) 순서로 처리하고, `get_change_order_summary`로 전체 현황을 본다.
+- `apply_change_order`는 승인(approved) 상태의 CO만 실반영하며, 각 세부항목의 공기·원가 변동이 activities와 cost_items에 직접 반영된다. 반영 후 상태는 '실반영완료(applied)'로 변경된다.
 - 만회대책/다음 행동 문구는 초안, 후보, 검토 필요 표현을 사용하며 최종 판단은 현장 책임자가 한다.
 
 ## Conventions

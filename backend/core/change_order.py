@@ -12,12 +12,15 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from dataclasses import replace
+
 from core import db
 from core.models import (
     CO_STATUSES,
     CO_STATUS_KR,
     CO_TYPE_KR,
     CO_TYPES,
+    ChangeLogEntry,
     ChangeOrder,
     ChangeOrderItem,
 )
@@ -169,7 +172,8 @@ def update_co_status_in_db(
     valid_transitions: dict[str, set[str]] = {
         "draft": {"pending", "rejected"},
         "pending": {"approved", "rejected"},
-        "approved": set(),
+        "approved": {"applied"},
+        "applied": set(),
         "rejected": {"draft"},
     }
     if new_status not in valid_transitions.get(co.status, set()):
@@ -292,6 +296,144 @@ def list_change_orders_from_db(
 # ---------------------------------------------------------------------------
 # CO summary
 # ---------------------------------------------------------------------------
+
+
+def apply_change_order_in_db(
+    db_path: str | Path,
+    co_id: str,
+    *,
+    applied_by: str = "",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """승인된 변경지시를 activities·cost_items에 실반영합니다.
+
+    Parameters
+    ----------
+    co_id : 반영할 변경지시 ID
+    applied_by : 반영 담당자 이름
+    dry_run : True이면 변경 내용 미리보기만 반환 (DB 미수정)
+
+    동작
+    ----
+    - CO 상태가 'approved'인지 확인합니다.
+    - 각 ChangeOrderItem에 대해:
+        - Activity.duration += item.duration_change
+        - Activity.cost    += item.cost_change
+        - CostItem.execution_budget += item.cost_change  (cost_item 없으면 신규 생성)
+    - CO 상태를 'applied'로 변경합니다.
+    - 각 activity 변경사항을 change_log에 기록합니다.
+    """
+    co = db.get_change_order(db_path, co_id)
+    if not co:
+        return {"ok": False, "error": f"변경지시를 찾을 수 없습니다: {co_id}"}
+
+    if co.status != "approved":
+        return {
+            "ok": False,
+            "error": (
+                f"실반영은 '승인' 상태에서만 가능합니다. "
+                f"현재 상태: {CO_STATUS_KR.get(co.status, co.status)}"
+            ),
+        }
+
+    items = db.list_change_order_items(db_path, co_id)
+    if not items:
+        return {
+            "ok": False,
+            "error": "적용할 세부항목이 없습니다. 먼저 add_change_order_item으로 항목을 추가하세요.",
+        }
+
+    activities = {a.activity_id: a for a in db.list_activities(db_path)}
+    cost_items = {ci.activity_id: ci for ci in db.list_cost_items(db_path)}
+
+    applied_items: list[dict[str, Any]] = []
+
+    for item in items:
+        act = activities.get(item.activity_id)
+        if not act:
+            applied_items.append({
+                "co_item_id": item.co_item_id,
+                "activity_id": item.activity_id,
+                "status": "skipped",
+                "reason": "activity not found",
+            })
+            continue
+
+        # Compute new values
+        new_duration = max(0, act.duration + item.duration_change)
+        new_cost = max(0.0, act.cost + item.cost_change)
+
+        if not dry_run:
+            # Update activity
+            updated_act = replace(act, duration=new_duration, cost=new_cost)
+            db.update_activity(db_path, updated_act)
+
+            # Update or create cost_item
+            ci = cost_items.get(item.activity_id)
+            if ci:
+                updated_ci = replace(
+                    ci,
+                    execution_budget=round(ci.execution_budget + item.cost_change, 0),
+                )
+                db.upsert_cost_item(db_path, updated_ci)
+            else:
+                from core.models import CostItem
+                new_ci = CostItem(
+                    cost_item_id=f"ci-{uuid.uuid4().hex[:8]}",
+                    activity_id=item.activity_id,
+                    execution_budget=max(0.0, item.cost_change),
+                )
+                db.upsert_cost_item(db_path, new_ci)
+
+            # Log change
+            change_entry = ChangeLogEntry(
+                change_id=f"chg-{uuid.uuid4().hex[:8]}",
+                target_table="activities",
+                target_id=item.activity_id,
+                before_value=(
+                    f"duration={act.duration}, cost={act.cost}"
+                ),
+                after_value=(
+                    f"duration={new_duration}, cost={new_cost}"
+                ),
+                reason=f"CO 실반영: {co.title} ({co_id})",
+                user=applied_by,
+                approved_by=co.approved_by,
+            )
+            db.log_change(db_path, change_entry)
+
+        applied_items.append({
+            "co_item_id": item.co_item_id,
+            "activity_id": item.activity_id,
+            "activity_name": act.name,
+            "duration_before": act.duration,
+            "duration_after": new_duration,
+            "duration_change": item.duration_change,
+            "cost_before": act.cost,
+            "cost_after": new_cost,
+            "cost_change": item.cost_change,
+            "status": "applied",
+        })
+
+    if not dry_run:
+        # Mark CO as applied
+        db.update_change_order_status(
+            db_path, co_id,
+            status="applied",
+            approved_by=co.approved_by,
+        )
+
+    return {
+        "ok": True,
+        "dry_run": dry_run,
+        "co_id": co_id,
+        "title": co.title,
+        "applied_by": applied_by,
+        "items_processed": len(applied_items),
+        "items": applied_items,
+        "status_after": "applied" if not dry_run else "approved (dry_run)",
+        "status_after_kr": "실반영완료" if not dry_run else "미리보기 (실제 반영 안 됨)",
+    }
 
 
 def get_co_summary(db_path: str | Path) -> dict[str, Any]:

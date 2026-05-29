@@ -280,7 +280,7 @@ CO_TYPES = frozenset({
     "field_condition", "value_engineering",
 })
 
-CO_STATUSES = frozenset({"draft", "pending", "approved", "rejected"})
+CO_STATUSES = frozenset({"draft", "pending", "approved", "rejected", "applied"})
 
 CO_TYPE_KR: dict[str, str] = {
     "scope_addition": "범위 추가",
@@ -295,6 +295,7 @@ CO_STATUS_KR: dict[str, str] = {
     "pending": "검토중",
     "approved": "승인",
     "rejected": "반려",
+    "applied": "실반영완료",
 }
 
 

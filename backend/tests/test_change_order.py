@@ -9,6 +9,7 @@ import pytest
 from core import db
 from core.change_order import (
     add_co_item_to_db,
+    apply_change_order_in_db,
     calculate_co_impact,
     create_change_order_in_db,
     get_co_summary,
@@ -346,3 +347,105 @@ class TestCoSummary:
         result = get_co_summary(co_db)
         assert result["by_type"]["design_change"]["count"] == 2
         assert result["by_type"]["design_change"]["direct_cost"] == 80_000_000
+
+
+# ---------------------------------------------------------------------------
+# Apply change order
+# ---------------------------------------------------------------------------
+
+
+def _make_approved_co(db_path, *, cost_change=10_000_000, duration_change=15):
+    """Helper: create CO → add item → approve through full status chain."""
+    create_change_order_in_db(
+        db_path, "적용 테스트 CO",
+        co_type="design_change",
+        direct_cost=cost_change,
+        schedule_impact_days=duration_change,
+        dry_run=False,
+    )
+    co_id = db.list_change_orders(db_path)[0].co_id
+
+    add_co_item_to_db(
+        db_path, co_id, "act-001",
+        cost_change=cost_change,
+        duration_change=duration_change,
+        dry_run=False,
+    )
+    update_co_status_in_db(db_path, co_id, "pending", dry_run=False)
+    update_co_status_in_db(db_path, co_id, "approved", dry_run=False)
+    return co_id
+
+
+class TestApplyChangeOrder:
+    def test_dry_run_returns_preview(self, co_db):
+        co_id = _make_approved_co(co_db)
+        result = apply_change_order_in_db(co_db, co_id, dry_run=True)
+        assert result["ok"] is True
+        assert result["dry_run"] is True
+        assert result["items_processed"] == 1
+        # Status not changed
+        co = db.get_change_order(co_db, co_id)
+        assert co.status == "approved"
+
+    def test_apply_updates_activity_duration(self, co_db):
+        co_id = _make_approved_co(co_db, duration_change=20)
+        before = next(a for a in db.list_activities(co_db) if a.activity_id == "act-001")
+        assert before.duration == 180
+
+        result = apply_change_order_in_db(co_db, co_id, applied_by="공무팀장", dry_run=False)
+        assert result["ok"] is True
+
+        after = next(a for a in db.list_activities(co_db) if a.activity_id == "act-001")
+        assert after.duration == 200  # 180 + 20
+
+    def test_apply_updates_activity_cost(self, co_db):
+        co_id = _make_approved_co(co_db, cost_change=5_000_000)
+        result = apply_change_order_in_db(co_db, co_id, dry_run=False)
+        assert result["ok"] is True
+
+        after = next(a for a in db.list_activities(co_db) if a.activity_id == "act-001")
+        assert after.cost == 5_000_000  # was 0.0, +5_000_000
+
+    def test_apply_sets_status_to_applied(self, co_db):
+        co_id = _make_approved_co(co_db)
+        apply_change_order_in_db(co_db, co_id, dry_run=False)
+        co = db.get_change_order(co_db, co_id)
+        assert co.status == "applied"
+
+    def test_cannot_apply_draft(self, co_db):
+        create_change_order_in_db(co_db, "초안 CO", dry_run=False)
+        co_id = db.list_change_orders(co_db)[0].co_id
+        result = apply_change_order_in_db(co_db, co_id, dry_run=False)
+        assert result["ok"] is False
+        assert "승인" in result["error"]
+
+    def test_cannot_apply_twice(self, co_db):
+        co_id = _make_approved_co(co_db)
+        apply_change_order_in_db(co_db, co_id, dry_run=False)
+        # Try again — status is now "applied"
+        result = apply_change_order_in_db(co_db, co_id, dry_run=False)
+        assert result["ok"] is False
+
+    def test_nonexistent_co(self, co_db):
+        result = apply_change_order_in_db(co_db, "nonexistent", dry_run=False)
+        assert result["ok"] is False
+
+    def test_no_items_rejected(self, co_db):
+        """CO without items should return error."""
+        create_change_order_in_db(co_db, "빈 CO", direct_cost=1_000_000, dry_run=False)
+        co_id = db.list_change_orders(co_db)[0].co_id
+        update_co_status_in_db(co_db, co_id, "pending", dry_run=False)
+        update_co_status_in_db(co_db, co_id, "approved", dry_run=False)
+        result = apply_change_order_in_db(co_db, co_id, dry_run=False)
+        assert result["ok"] is False
+        assert "세부항목" in result["error"]
+
+    def test_item_detail_in_response(self, co_db):
+        co_id = _make_approved_co(co_db, cost_change=8_000_000, duration_change=10)
+        result = apply_change_order_in_db(co_db, co_id, dry_run=True)
+        item = result["items"][0]
+        assert item["activity_id"] == "act-001"
+        assert item["duration_change"] == 10
+        assert item["cost_change"] == 8_000_000
+        assert item["duration_before"] == 180
+        assert item["duration_after"] == 190
