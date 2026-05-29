@@ -877,3 +877,41 @@ git diff --check
   remain later-version candidates.
 - The sample DB smoke confirms shape and diagnostics, but real field DB smoke
   should still be run on a copied `.scheduler` file before operational use.
+
+## v2.6 Event-Driven Notification System (MVP)
+
+Date: 2026-05-29
+
+### Changed Files
+
+- core/models.py
+- core/db.py
+- core/notifications.py
+- iewer/pages/10_notification_simulator.py
+
+### Implemented
+
+- Added status field (PENDING, RUNNING, DONE, DELAYED) to the Activity model and ctivities table with automatic v4 schema migration.
+- Added NotificationLog model and 
+otification_logs table schema for recording triggered notifications.
+- Implemented update_activity_status and _dispatch_notifications in core/notifications.py to identify successor activities and auto-generate draft notification logs when a predecessor is marked DONE or DELAYED.
+- Created a PoC Streamlit dashboard (10_notification_simulator.py) to simulate field-input status changes and view the resulting notification dispatch logs and dependency table in real-time.
+
+### Commands Run
+
+\\\powershell
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m mypy .
+\\\
+
+### Test Result
+
+- \pytest -q\: \395 passed, 16 warnings\.
+- \uff check .\: Fixed an import issue and remaining checks passed.
+- \mypy .\: Fixed an integer typing error with \cursor.lastrowid\ in \db.py\, then passed successfully.
+
+### Remaining Risks
+
+- The notification system only records logs; integration with real external notification services (e.g., Slack, Kakao) is deferred.
+

@@ -54,6 +54,7 @@ class Activity:
     total_float: int | None = None
     is_critical: bool = False
     progress_pct: float = 0.0
+    status: str = "PENDING"
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -335,3 +336,14 @@ def with_timestamps(model, created_at: str | None = None, updated_at: str | None
         created_at=created_at if created_at is not None else model.created_at,
         updated_at=updated_at if updated_at is not None else model.updated_at,
     )
+
+
+@dataclass(frozen=True)
+class NotificationLog:
+    log_id: int
+    activity_id: str
+    target_role: str
+    notification_type: str
+    message: str
+    is_sent: bool = False
+    created_at: str | None = None

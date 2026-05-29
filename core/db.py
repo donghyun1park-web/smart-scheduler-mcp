@@ -22,6 +22,7 @@ from core.models import (
     DelayEvent,
     InspectionRecord,
     MaterialRecord,
+    NotificationLog,
     Project,
     ProjectSettings,
     Relationship,
@@ -30,7 +31,7 @@ from core.models import (
 from core.progress import calculate_quantity_progress
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def initialize_database(path: str | Path) -> None:
@@ -89,6 +90,7 @@ def initialize_database(path: str | Path) -> None:
                 total_float INTEGER,
                 is_critical INTEGER NOT NULL DEFAULT 0,
                 progress_pct REAL NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'PENDING',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY (wbs_id) REFERENCES wbs(wbs_id)
@@ -269,16 +271,38 @@ def initialize_database(path: str | Path) -> None:
                 ON delay_events(delay_type);
             CREATE INDEX IF NOT EXISTS idx_delay_events_status
                 ON delay_events(status);
+            CREATE TABLE IF NOT EXISTS notification_logs (
+                log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                activity_id TEXT NOT NULL,
+                target_role TEXT NOT NULL,
+                notification_type TEXT NOT NULL,
+                message TEXT NOT NULL,
+                is_sent INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (activity_id) REFERENCES activities(activity_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_notification_logs_activity
+                ON notification_logs(activity_id);
+            CREATE INDEX IF NOT EXISTS idx_notification_logs_sent
+                ON notification_logs(is_sent);
             """
         )
         row = conn.execute("SELECT version FROM schema_version").fetchone()
         current_version = int(row["version"]) if row else 0
         if current_version < 3:
             _migrate_add_progress_pct(conn)
+        if current_version < 4:
+            _migrate_add_activity_status(conn)
         if row is None:
             conn.execute("INSERT INTO schema_version(version) VALUES (?)", (SCHEMA_VERSION,))
         elif current_version < SCHEMA_VERSION:
             conn.execute("UPDATE schema_version SET version = ?", (SCHEMA_VERSION,))
+
+
+def _migrate_add_activity_status(conn: sqlite3.Connection) -> None:
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(activities)")}
+    if "status" not in cols:
+        conn.execute("ALTER TABLE activities ADD COLUMN status TEXT NOT NULL DEFAULT 'PENDING'")
 
 
 def _migrate_add_progress_pct(conn: sqlite3.Connection) -> None:
@@ -410,9 +434,9 @@ def create_activity(path: str | Path, activity: Activity) -> Activity:
             INSERT INTO activities(
                 activity_id, code, name, wbs_id, discipline, zone, duration, cost,
                 es_workday, ef_workday, ls_workday, lf_workday, es_date, ef_date,
-                total_float, is_critical, progress_pct, created_at, updated_at
+                total_float, is_critical, progress_pct, status, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             _activity_values(stamped),
         )
@@ -451,6 +475,7 @@ def update_activity(path: str | Path, activity: Activity) -> Activity:
                 total_float = ?,
                 is_critical = ?,
                 progress_pct = ?,
+                status = ?,
                 updated_at = ?
             WHERE activity_id = ?
             """,
@@ -471,6 +496,7 @@ def update_activity(path: str | Path, activity: Activity) -> Activity:
                 stamped.total_float,
                 int(stamped.is_critical),
                 float(stamped.progress_pct),
+                stamped.status,
                 stamped.updated_at,
                 stamped.activity_id,
             ),
@@ -1276,6 +1302,7 @@ def _activity_values(activity: Activity) -> tuple[object, ...]:
         activity.total_float,
         int(activity.is_critical),
         float(activity.progress_pct),
+        activity.status,
         activity.created_at,
         activity.updated_at,
     )
@@ -1324,6 +1351,7 @@ def _activity_from_row(row: sqlite3.Row) -> Activity:
         total_float=row["total_float"],
         is_critical=bool(row["is_critical"]),
         progress_pct=float(row["progress_pct"] if "progress_pct" in row.keys() else 0.0),
+        status=row["status"] if "status" in row.keys() else "PENDING",
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -1530,4 +1558,48 @@ def _calendar_from_row(row: sqlite3.Row) -> Calendar:
         holidays=tuple(holidays),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+    )
+
+
+def create_notification_log(path: str | Path, log: NotificationLog) -> NotificationLog:
+    timestamp = _now()
+    with _connect(path) as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO notification_logs(
+                activity_id, target_role, notification_type, message, is_sent, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                log.activity_id,
+                log.target_role,
+                log.notification_type,
+                log.message,
+                int(log.is_sent),
+                timestamp if log.created_at is None else log.created_at,
+            ),
+        )
+        log_id = cursor.lastrowid or 0
+    return replace(log, log_id=log_id, created_at=timestamp if log.created_at is None else log.created_at)
+
+
+def list_notification_logs(path: str | Path, *, limit: int = 100) -> list[NotificationLog]:
+    with _connect(path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM notification_logs ORDER BY created_at DESC LIMIT ?",
+            (limit,)
+        ).fetchall()
+    return [_notification_log_from_row(row) for row in rows]
+
+
+def _notification_log_from_row(row: sqlite3.Row) -> NotificationLog:
+    return NotificationLog(
+        log_id=row["log_id"],
+        activity_id=row["activity_id"],
+        target_role=row["target_role"],
+        notification_type=row["notification_type"],
+        message=row["message"],
+        is_sent=bool(row["is_sent"]),
+        created_at=row["created_at"],
     )
