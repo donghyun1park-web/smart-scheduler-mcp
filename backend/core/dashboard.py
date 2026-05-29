@@ -30,10 +30,15 @@ def generate_site_briefing(
     db_path: str | Path,
     *,
     as_of: date | None = None,
+    _include_alerts: bool = True,
 ) -> dict[str, Any]:
     """Generate a concise site status briefing.
 
     Returns key metrics and a single-sentence Korean status summary.
+
+    When ``_include_alerts`` is True (default), an ``alerts`` list of
+    actionable warnings is attached so Claude can mention them proactively.
+    The flag exists to let the alert engine call this without recursion.
     """
     today = as_of or date.today()
     activities = db.list_activities(db_path)
@@ -103,7 +108,7 @@ def generate_site_briefing(
            if today_schedule['overdue_start_count'] else "")
     )
 
-    return {
+    result = {
         "ok": True,
         "as_of": today.isoformat(),
         "project_name": project_name,
@@ -118,6 +123,20 @@ def generate_site_briefing(
         "today_schedule": today_schedule,
         "briefing": briefing,
     }
+
+    if _include_alerts:
+        try:
+            from core.alerts import scan_alerts
+            alert_result = scan_alerts(db_path, as_of=today)
+            result["alerts"] = alert_result.get("alerts", [])
+            result["alert_summary"] = {
+                "critical_count": alert_result.get("critical_count", 0),
+                "warning_count": alert_result.get("warning_count", 0),
+            }
+        except Exception:
+            result["alerts"] = []
+
+    return result
 
 
 # ---------------------------------------------------------------------------

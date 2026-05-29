@@ -56,7 +56,18 @@ from tools.dashboard_tools import (
     get_dashboard_report,
     get_delayed_activities,
     get_discipline_progress,
+    get_site_alerts,
     get_site_briefing,
+)
+from tools.context_tools import (
+    clear_active_project,
+    get_active_project,
+    set_active_project,
+)
+from tools.baseline_tools import (
+    compare_to_baseline,
+    establish_baseline,
+    list_baselines,
 )
 from tools.field_uat_tools import run_field_uat_workflow
 from tools.import_tools import import_budget_excel, import_excel, import_schedule_excel
@@ -114,6 +125,16 @@ def build_server() -> FastMCP:
     mcp.tool()(get_dashboard_report)
     mcp.tool()(get_discipline_progress)
     mcp.tool()(get_delayed_activities)
+    # v2.9: Active project context (db_path 자동 해결)
+    mcp.tool()(set_active_project)
+    mcp.tool()(get_active_project)
+    mcp.tool()(clear_active_project)
+    # v2.9: Baseline schedule (기준공정표)
+    mcp.tool()(establish_baseline)
+    mcp.tool()(list_baselines)
+    mcp.tool()(compare_to_baseline)
+    # v2.9: Active alerts (능동 경고)
+    mcp.tool()(get_site_alerts)
     # v2.4: Materials & Inspections
     mcp.tool()(add_material)
     mcp.tool()(list_materials_tool)

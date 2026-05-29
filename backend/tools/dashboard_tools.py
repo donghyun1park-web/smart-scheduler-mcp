@@ -94,3 +94,26 @@ def get_delayed_activities(
     return get_delayed_with_recovery(
         db_path, as_of=as_of_date, threshold_pct=threshold_pct, top_n=top_n,
     )
+
+
+def get_site_alerts(
+    db_path: str = "",
+    *,
+    as_of: str | None = None,
+) -> dict[str, Any]:
+    """현장의 조치 필요 경고를 스캔합니다.
+
+    자재 납기 초과, 승인 대기/미반영 변경지시, 공정 부진 등을
+    🔴 위험 / 🟡 주의 수준으로 정리해 반환합니다.
+
+    Parameters
+    ----------
+    db_path : .scheduler 파일 경로 (생략 시 활성 프로젝트 사용)
+    as_of : 기준일 (YYYY-MM-DD), 기본값 오늘
+    """
+    from datetime import date as d
+    from core.alerts import scan_alerts
+    from core.context import resolve_db_path
+
+    as_of_date = d.fromisoformat(as_of) if as_of else None
+    return scan_alerts(resolve_db_path(db_path), as_of=as_of_date)

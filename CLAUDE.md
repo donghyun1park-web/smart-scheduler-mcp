@@ -73,9 +73,10 @@ scripts/
 | v2.5 | feature/v2.5-operations-center | not opened | local ready | Operations Center, data health, next actions |
 | v2.6 | (local) | — | complete | Cash flow forecaster, budget variance analyzer |
 | v2.7 | (local) | — | complete | Schedule delay analyzer, productivity analyzer |
-| v2.8 | (local) | — | complete | Change order processor |
+| v2.8 | (local) | — | complete | Change order processor (+ apply_change_order 실반영) |
+| v2.9 | (local) | — | complete | Quick Wins: 활성 프로젝트 컨텍스트, 기준공정표(Baseline), 능동 경고 |
 
-### MCP Tools (59 total)
+### MCP Tools (67 total)
 
 **Project**: list_projects, load_project, create_project
 **Import**: import_excel, import_schedule_excel, import_budget_excel
@@ -91,6 +92,9 @@ scripts/
 **Delay Analysis (v2.7)**: record_delay_event, list_delay_events_tool, analyze_delays, calculate_time_extension_claim
 **Productivity (v2.7)**: analyze_productivity, get_productivity_trend
 **Change Orders (v2.8)**: create_change_order, add_change_order_item, update_change_order_status, apply_change_order, list_change_orders_tool, get_change_order_impact, get_change_order_summary
+**Context (v2.9)**: set_active_project, get_active_project, clear_active_project (db_path 자동 해결)
+**Baseline (v2.9)**: establish_baseline, list_baselines, compare_to_baseline (기준공정표 대비 지연 측정)
+**Alerts (v2.9)**: get_site_alerts (자재납기/CO/공정 능동 경고; get_site_briefing에도 자동 포함)
 **Other**: apply_sequences, generate_report, calibrate_completion_date, run_field_uat_workflow
 
 ### AI Usage Guide
@@ -105,6 +109,9 @@ scripts/
 - 생산성은 `analyze_productivity`로 활동별/공종별 지수를 확인하고, `get_productivity_trend`로 추세를 본다.
 - 설계변경은 `create_change_order` → `add_change_order_item` → `update_change_order_status`(pending→approved) → `apply_change_order`(dry_run=False) 순서로 처리하고, `get_change_order_summary`로 전체 현황을 본다.
 - `apply_change_order`는 승인(approved) 상태의 CO만 실반영하며, 각 세부항목의 공기·원가 변동이 activities와 cost_items에 직접 반영된다. 반영 후 상태는 '실반영완료(applied)'로 변경된다.
+- 활성 프로젝트 컨텍스트(v2.9): `set_active_project`로 db_path를 한 번 등록하면 이후 모든 도구에서 db_path를 생략할 수 있다. 비기술 사용자(건축담당, 공무과장 등)에게 유용하다.
+- 기준공정표(v2.9): 착공 시 `establish_baseline`(dry_run=False)으로 기준을 확정하고, 이후 `compare_to_baseline`으로 현재 공정 대비 지연일수(finish_drift_days)를 확인한다. 여러 기준선을 등록해 revision별 비교가 가능하다.
+- 능동 경고(v2.9): `get_site_alerts`로 자재 납기 초과·CO 승인 대기·미반영 CO·공정 부진을 🔴/🟡 수준으로 확인한다. `get_site_briefing`에도 경고가 자동 포함되므로 아침 브리핑 한 번으로 당일 조치 항목을 파악할 수 있다.
 - 만회대책/다음 행동 문구는 초안, 후보, 검토 필요 표현을 사용하며 최종 판단은 현장 책임자가 한다.
 
 ## Conventions
