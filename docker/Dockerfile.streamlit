@@ -11,8 +11,11 @@ COPY frontend/ ./frontend/
 
 EXPOSE 8501
 
-CMD ["streamlit", "run", "frontend/app_mobile.py", \
-     "--server.address=0.0.0.0", \
-     "--server.port=8501", \
-     "--server.headless=true", \
-     "--browser.gatherUsageStats=false"]
+# STREAMLIT_APP 환경변수로 앱 선택 (mobile 또는 report-scanner)
+ENV STREAMLIT_APP=frontend/app_mobile.py
+
+CMD ["sh", "-c", "streamlit run ${STREAMLIT_APP} \
+     --server.address=0.0.0.0 \
+     --server.port=8501 \
+     --server.headless=true \
+     --browser.gatherUsageStats=false"]

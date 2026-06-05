@@ -2,10 +2,11 @@
 
 Endpoints
 ---------
-GET  /api/activities      공종별 활동 목록 (모바일 폼용)
-POST /api/daily-record    일일 실적 저장
-GET  /api/dashboard-data  소장 대시보드 KPI
-POST /api/update-status   활동 상태 변경 (기존 유지)
+GET  /api/activities           공종별 활동 목록 (모바일 폼용)
+POST /api/daily-record         일일 실적 저장
+GET  /api/dashboard-data       소장 대시보드 KPI
+POST /api/update-status        활동 상태 변경 (기존 유지)
+POST /api/parse-daily-report   공사일보 사진/Excel → 구조화 데이터 (v3.1)
 """
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 import uvicorn
 
@@ -26,6 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from core.db import create_daily_record, list_activities
 from core.models import DailyRecord
 from core.notifications import update_activity_status
+from core.report_parser import parse_report_excel, parse_report_image
 
 app = FastAPI(title="Smart Scheduler API", version="3.0")
 
@@ -136,6 +138,40 @@ def update_status(req: StatusUpdateRequest) -> dict[str, Any]:
         return {"status": "success", "message": f"{req.activity_id} 업데이트 완료"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/parse-daily-report")
+async def parse_daily_report(
+    file: UploadFile = File(..., description="공사일보 파일 (JPG/PNG/Excel)"),
+    db_path: str = Form(default=_DEFAULT_DB),
+) -> dict[str, Any]:
+    """공사일보 이미지 또는 Excel → 구조화 JSON.
+
+    이미지(jpg/png): Claude Vision API 호출 (ANTHROPIC_API_KEY 필요)
+    Excel(xlsx):     openpyxl로 고정 위치 파싱
+    """
+    content = await file.read()
+    filename = (file.filename or "").lower()
+
+    try:
+        if filename.endswith((".xlsx", ".xls")):
+            parsed = parse_report_excel(content)
+        else:
+            # MIME 타입 결정
+            if filename.endswith(".png"):
+                mime = "image/png"
+            elif filename.endswith(".webp"):
+                mime = "image/webp"
+            else:
+                mime = "image/jpeg"
+            parsed = parse_report_image(content, mime)
+
+        return {"ok": True, "parsed": parsed, "warnings": parsed.get("warnings", [])}
+
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"파싱 오류: {e}")
 
 
 @app.get("/health")

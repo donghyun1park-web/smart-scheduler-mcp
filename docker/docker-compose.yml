@@ -46,6 +46,24 @@ services:
     environment:
       - API_URL=http://api:8000          # 컨테이너 내부 통신
       - DEFAULT_DB_PATH=/data/현장.scheduler
+      - STREAMLIT_APP=frontend/app_mobile.py
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  report-scanner:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.streamlit
+    container_name: scheduler-report-scanner
+    ports:
+      - "8502:8501"
+    environment:
+      - API_URL=http://api:8000
+      - DEFAULT_DB_PATH=/data/현장.scheduler
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}   # .env 파일에서 로드
+      - STREAMLIT_APP=frontend/app_report_scan.py
     depends_on:
       api:
         condition: service_healthy
