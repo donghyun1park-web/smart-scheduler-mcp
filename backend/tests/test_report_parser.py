@@ -1,11 +1,19 @@
-"""Tests for report_parser — Excel 파싱 및 JSON 추출 헬퍼."""
+"""Tests for report_parser — Excel 파싱, JSON 추출 헬퍼, 프로바이더 분기."""
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.report_parser import _parse_date, _parse_json_response, parse_report_excel
+from core.report_parser import (
+    _parse_date,
+    _parse_json_response,
+    _call_claude_vision,
+    _call_gemini_vision,
+    parse_report_excel,
+    parse_report_image,
+)
 
 # 샘플 Excel 파일 경로 (실제 파일 없으면 skip)
 SAMPLE_EXCEL = Path(
@@ -100,3 +108,47 @@ class TestParseReportExcel:
     def test_summary_non_empty(self):
         data = parse_report_excel(SAMPLE_EXCEL.read_bytes())
         assert data.get("summary", "")
+
+
+# ─── 프로바이더 분기 테스트 ──────────────────────────────────────────────────────
+
+class TestProviderDispatch:
+    _FAKE_RESPONSE = '{"work_date":"2024-04-25","team_name":"테스트","work_items":[],"equipment":[],"supplies":[],"summary":"ok"}'
+    _DUMMY_IMG = b"\xff\xd8\xff"   # 최소 JPEG 헤더
+
+    def test_dispatch_gemini(self, monkeypatch):
+        """VISION_PROVIDER=gemini → _call_gemini_vision 호출."""
+        monkeypatch.setenv("VISION_PROVIDER", "gemini")
+        with patch("core.report_parser._call_gemini_vision") as mock_g:
+            mock_g.return_value = {"work_date": "2024-04-25", "warnings": []}
+            result = parse_report_image(self._DUMMY_IMG)
+            mock_g.assert_called_once()
+            assert result["work_date"] == "2024-04-25"
+
+    def test_dispatch_claude(self, monkeypatch):
+        """VISION_PROVIDER=claude → _call_claude_vision 호출."""
+        monkeypatch.setenv("VISION_PROVIDER", "claude")
+        with patch("core.report_parser._call_claude_vision") as mock_c:
+            mock_c.return_value = {"work_date": "2024-04-25", "warnings": []}
+            result = parse_report_image(self._DUMMY_IMG)
+            mock_c.assert_called_once()
+            assert result["work_date"] == "2024-04-25"
+
+    def test_unknown_provider_raises(self, monkeypatch):
+        """알 수 없는 프로바이더 → RuntimeError."""
+        monkeypatch.setenv("VISION_PROVIDER", "openai")
+        with pytest.raises(RuntimeError, match="지원하지 않는 VISION_PROVIDER"):
+            parse_report_image(self._DUMMY_IMG)
+
+    def test_gemini_missing_api_key_raises(self, monkeypatch):
+        """GEMINI_API_KEY 없으면 RuntimeError."""
+        monkeypatch.setenv("VISION_PROVIDER", "gemini")
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        with pytest.raises(RuntimeError, match="GEMINI_API_KEY"):
+            _call_gemini_vision(self._DUMMY_IMG, "image/jpeg")
+
+    def test_claude_missing_api_key_raises(self, monkeypatch):
+        """ANTHROPIC_API_KEY 없으면 RuntimeError."""
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
+            _call_claude_vision(self._DUMMY_IMG, "image/jpeg")

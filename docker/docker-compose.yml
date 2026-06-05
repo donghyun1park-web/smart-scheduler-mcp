@@ -62,8 +62,12 @@ services:
     environment:
       - API_URL=http://api:8000
       - DEFAULT_DB_PATH=/data/현장.scheduler
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}   # .env 파일에서 로드
       - STREAMLIT_APP=frontend/app_report_scan.py
+      # Vision AI 프로바이더 설정 (.env 파일에서 로드)
+      - VISION_PROVIDER=${VISION_PROVIDER:-gemini}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}        # 권장 (무료)
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}  # claude 선택 시
     depends_on:
       api:
         condition: service_healthy

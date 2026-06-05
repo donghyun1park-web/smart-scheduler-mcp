@@ -3,5 +3,6 @@ uvicorn[standard]
 pydantic
 mcp
 anthropic
+google-genai
 openpyxl
 python-multipart

@@ -54,17 +54,79 @@ _EXTRACT_PROMPT = """\
 ```
 """
 
-# ─── 이미지 파싱 (Claude Vision) ──────────────────────────────────────────────
+# ─── 이미지 파싱 — 프로바이더 디스패처 ──────────────────────────────────────────
+
+# 환경변수로 선택 (기본값: gemini — 무료 티어 + 최저가)
+_PROVIDER = os.environ.get("VISION_PROVIDER", "gemini").lower()
+
 
 def parse_report_image(
     image_bytes: bytes,
     mime_type: str = "image/jpeg",
+) -> dict[str, Any]:
+    """카메라 사진 → Vision AI → 구조화 dict.
+
+    VISION_PROVIDER 환경변수로 프로바이더 선택:
+      gemini (기본값) — GEMINI_API_KEY 필요, 무료 티어 제공
+      claude          — ANTHROPIC_API_KEY 필요
+    """
+    provider = os.environ.get("VISION_PROVIDER", _PROVIDER)
+    if provider == "gemini":
+        return _call_gemini_vision(image_bytes, mime_type)
+    elif provider == "claude":
+        return _call_claude_vision(image_bytes, mime_type)
+    else:
+        raise RuntimeError(
+            f"지원하지 않는 VISION_PROVIDER: '{provider}'. "
+            "'gemini' 또는 'claude'로 설정하세요."
+        )
+
+
+def _call_gemini_vision(image_bytes: bytes, mime_type: str) -> dict[str, Any]:
+    """Gemini Vision API 호출 (google-genai 신규 SDK).
+
+    GEMINI_API_KEY 환경변수 필요.
+    무료 티어: 15 RPM / 1,500 RPD (일 1,500장 무료).
+    비용: ~$0.0003/장 (유료 전환 시).
+    """
+    try:
+        from google import genai
+        from google.genai import types as genai_types
+    except ImportError as e:
+        raise RuntimeError(
+            "google-genai 패키지 필요: pip install google-genai"
+        ) from e
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY 환경변수가 설정되지 않았습니다.\n"
+            "https://aistudio.google.com 에서 무료 발급 가능."
+        )
+
+    model_name = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+    client = genai.Client(api_key=api_key)
+
+    image_part = genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+    text_part  = genai_types.Part.from_text(text=_EXTRACT_PROMPT)
+
+    response = client.models.generate_content(
+        model=model_name,
+        contents=[image_part, text_part],
+    )
+    return _parse_json_response(response.text)
+
+
+def _call_claude_vision(
+    image_bytes: bytes,
+    mime_type: str,
     *,
     model: str = "claude-3-5-haiku-20241022",
 ) -> dict[str, Any]:
-    """카메라 사진 → Claude Vision API → 구조화 dict.
+    """Claude Vision API 호출.
 
     ANTHROPIC_API_KEY 환경변수 필요.
+    비용: ~$0.003/장.
     """
     try:
         import anthropic
