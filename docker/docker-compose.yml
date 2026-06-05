@@ -1,0 +1,61 @@
+version: "3.9"
+
+# ────────────────────────────────────────────────────────────────
+# Smart Scheduler — NAS Docker Compose
+#
+# 사용법 (NAS SSH 접속 후):
+#   docker-compose -f docker/docker-compose.yml up -d
+#
+# .scheduler 파일 위치:
+#   NAS: /volume1/scheduler/현장명.scheduler
+#   컨테이너: /data/현장명.scheduler
+#
+# 핸드폰 북마크 URL:
+#   건축:   http://NAS_IP:8501?discipline=건축&db=/data/현장.scheduler
+#   기계설비: http://NAS_IP:8501?discipline=기계설비&db=/data/현장.scheduler
+#   전기설비: http://NAS_IP:8501?discipline=전기설비&db=/data/현장.scheduler
+#   토목:   http://NAS_IP:8501?discipline=토목&db=/data/현장.scheduler
+# ────────────────────────────────────────────────────────────────
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    container_name: scheduler-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - scheduler-data:/data        # .scheduler DB 파일 공유 볼륨
+    environment:
+      - DEFAULT_DB_PATH=/data/현장.scheduler
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  mobile:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.streamlit
+    container_name: scheduler-mobile
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000          # 컨테이너 내부 통신
+      - DEFAULT_DB_PATH=/data/현장.scheduler
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  scheduler-data:
+    # NAS 볼륨을 직접 마운트하려면 아래 주석 해제 후 경로 수정
+    # driver: local
+    # driver_opts:
+    #   type: none
+    #   o: bind
+    #   device: /volume1/scheduler
