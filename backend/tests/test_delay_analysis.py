@@ -13,7 +13,7 @@ from core.delay_analysis import (
     list_delay_events_from_db,
     record_delay_event_to_db,
 )
-from core.models import Activity, Calendar, CostItem, DelayEvent, Project, WBS
+from core.models import Activity, Calendar, Project, WBS
 
 
 @pytest.fixture

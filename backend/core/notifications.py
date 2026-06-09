@@ -27,7 +27,21 @@ def update_activity_status(
         return
 
     updated_activity = dataclasses.replace(activity, status=new_status)
+    if delayed_days > 0 and new_status == "DELAYED":
+        updated_activity = dataclasses.replace(
+            updated_activity, duration=activity.duration + delayed_days
+        )
+
     db.update_activity(db_path, updated_activity)
+
+    if delayed_days > 0 and new_status == "DELAYED":
+        from core.cpm import run_cpm_for_project
+        run_cpm_for_project(db_path)
+        
+        # Reload activity_map to get updated dates
+        activities = db.list_activities(db_path)
+        activity_map = {a.activity_id: a for a in activities}
+        updated_activity = activity_map[activity_id]
 
     if new_status in ("DONE", "DELAYED"):
         _dispatch_notifications(db_path, updated_activity, activity_map, delayed_days)
@@ -59,7 +73,8 @@ def _dispatch_notifications(
                 db.create_notification_log(db_path, log)
 
             elif trigger_activity.status == "DELAYED":
-                msg = f"⚠️ [일정변경 경고] {trigger_activity.name} 작업이 지연되었습니다 ({delayed_days}일). 후행 공정({successor.discipline})인 {successor.name}의 투입 일정 조정을 검토해주세요."
+                new_date = successor.es_date.isoformat() if successor.es_date else "미정"
+                msg = f"⚠️ [일정연기] 선행 공정 '{trigger_activity.name}' {delayed_days}일 지연으로, '{successor.name}' 일정이 {new_date}로 자동 연기되었습니다."
                 log = NotificationLog(
                     log_id=0,
                     activity_id=trigger_activity.activity_id,

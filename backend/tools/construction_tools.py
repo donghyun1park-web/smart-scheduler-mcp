@@ -14,7 +14,7 @@ from core.number_utils import to_float
 from core.reporting import create_weekly_construction_report
 from core.recovery import format_recovery_report, suggest_recovery_plans
 from core.validation import validate_progress_quantities
-from viewer.components.site_manager_dashboard import build_site_manager_dashboard_summary
+from core.dashboard_logic import build_site_manager_dashboard_summary
 
 
 def input_daily_record(record: dict[str, object]) -> dict[str, object]:

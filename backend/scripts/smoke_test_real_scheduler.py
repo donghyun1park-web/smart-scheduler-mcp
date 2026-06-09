@@ -14,7 +14,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from core.importer import generate_weekly_report_from_db, import_field_input_to_db  # noqa: E402
 from core.recovery import FORBIDDEN_FINAL_WORDS, suggest_recovery_plans  # noqa: E402
-from viewer.components.site_manager_dashboard import load_site_dashboard_data_from_db  # noqa: E402
+from core.dashboard_logic import load_site_dashboard_data_from_db  # noqa: E402
 
 
 RECOVERY_REASON_CODES = [

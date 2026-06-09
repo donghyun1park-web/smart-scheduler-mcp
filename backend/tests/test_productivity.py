@@ -13,7 +13,7 @@ from core.productivity import (
     classify_productivity_status,
     get_productivity_trend,
 )
-from core.models import Activity, Calendar, CostItem, DailyRecord, Project, WBS
+from core.models import Activity, Calendar, DailyRecord, Project, WBS
 
 
 @pytest.fixture

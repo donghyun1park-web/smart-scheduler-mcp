@@ -4,7 +4,6 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
-import pytest
 
 from core import db
 from core.daily_record_bulk import apply_parsed_rows, parse_tsv

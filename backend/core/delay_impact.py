@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from core import db
-from core.models import Activity, Relationship
+from core.models import Activity
 
 
 def analyze_delay_impact(
