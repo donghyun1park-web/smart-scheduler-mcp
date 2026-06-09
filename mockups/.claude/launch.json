@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mobile-worker",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-p", "4001", "-s", "."],
+      "port": 4001
+    },
+    {
+      "name": "manager-dashboard",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-p", "4002", "-s", "."],
+      "port": 4002
+    }
+  ]
+}
