@@ -9,7 +9,8 @@ from core import db
 from core.models import Activity, Relationship
 
 
-SEQUENCES_PATH = Path(__file__).resolve().parents[1] / "mep" / "sequences.json"
+# v3.4: mep/ 데이터 폴더는 repo 루트로 이동 (parents[3] = repo root)
+SEQUENCES_PATH = Path(__file__).resolve().parents[3] / "mep" / "sequences.json"
 
 
 def apply_sequences(

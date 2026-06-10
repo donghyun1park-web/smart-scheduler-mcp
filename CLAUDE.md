@@ -8,51 +8,71 @@
 python -m venv .venv
 .venv\Scripts\activate          # Windows
 pip install -e ".[test]"
-pytest --ignore=tests/test_budget_importer.py   # 빠른 테스트 (322개, ~1분)
+pytest --ignore=tests/test_budget_importer.py   # 빠른 테스트 (406개 통과, ~3분)
 pytest                                          # 전체 테스트 (실행예산 파일 필요, ~6분)
+
+# MCP 서버 (Claude Desktop 연결)
+python src/backend/server.py
+
+# 모바일 입력 앱 (Streamlit)
+streamlit run src/frontend/app_mobile.py
+
+# NAS 배포
+docker-compose -f infrastructure/docker/docker-compose.yml up -d
 ```
 
-## Architecture
+## Architecture (v3.4 폴더 재구성)
 
 ```
-server.py              ← MCP 서버 진입점 (60 tools)
-core/                  ← 비즈니스 로직
-  db.py                  SQLite .scheduler 파일 (SCHEMA_VERSION=2, 3 new tables)
-  models.py              dataclass: Project, Activity, CostItem, DelayEvent, ChangeOrder, etc.
-  billing.py             기성고 산출/S-curve
-  cashflow.py            현금흐름 예측 (v2.6)
-  cost.py                원가 분석/예산 차이/EAC 시나리오 (v2.6 확장)
-  delay_analysis.py      공기지연 분류/클레임 (v2.7)
-  productivity.py        생산성 분석/추세 (v2.7)
-  change_order.py        설계변경 관리 (v2.8)
-  dashboard.py           현장 대시보드/브리핑
-  data_health.py         읽기 전용 데이터 건강점수/오류 진단
-  next_actions.py        사용자 역할별 다음 행동 추천
-  evm_explain.py         EVM 지표 한국어 쉬운 설명
-  workflows.py           일일마감/주간보고 사전점검 상태
-  budget_importer.py     실행예산 Excel → DB (Type A/B 자동감지)
-  schedule_importer.py   공정표 바차트 Excel → DB
-  relationship_inference.py  Activity 간 관계 자동추론
-  evm.py / s_curve.py / cpm.py  EVM/S-curve/CPM 분석
-tools/                 ← MCP tool 래퍼 (server.py에서 등록)
-  billing_tools.py       기성고 4개 도구
-  dashboard_tools.py     대시보드 4개 도구
-  material_tools.py      자재/검측 7개 도구
-  cost_tools.py          EVM/원가 5개 도구 (v2.6: +2)
-  cashflow_tools.py      현금흐름 3개 도구 (v2.6)
-  delay_tools.py         지연분석 4개 도구 (v2.7)
-  productivity_tools.py  생산성 2개 도구 (v2.7)
-  change_order_tools.py  설계변경 6개 도구 (v2.8)
-  import_tools.py        Excel 임포트 3개 도구
-  relationship_tools.py  관계추론 2개 도구
-  construction_tools.py  일보/지연/만회/주간보고 7개 도구
-  diagnostic_tools.py    운영센터/진단 4개 도구
-viewer/
-  pages/00_operations_center.py  Streamlit 운영센터 홈
-tests/                 ← pytest (322 tests)
-scripts/
-  create_sample_db.py   샘플 .scheduler DB 생성 (실제 Excel 필요)
+smart-scheduler-mcp/
+├── src/
+│   ├── backend/                 ← MCP 서버 + FastAPI (Python 진입점)
+│   │   ├── server.py              MCP 서버 진입점 (67 tools)
+│   │   ├── main.py                FastAPI 모바일 백엔드
+│   │   ├── core/                  비즈니스 로직 (db, models, billing, cost, ...)
+│   │   ├── tools/                 MCP tool 래퍼 (server.py에서 등록)
+│   │   ├── scripts/               유틸 스크립트 (create_sample_db, smoke_test)
+│   │   └── requirements.txt       백엔드 의존성
+│   └── frontend/                ← Streamlit 앱들
+│       ├── app_mobile.py          모바일 실적 입력 (v3.3 통합 UX)
+│       ├── app_dashboard.py       PC 현장소장 대시보드
+│       ├── requirements.txt
+│       └── _deprecated_viewer/    구 viewer 코드 (참조용)
+├── tests/                       ← pytest 통합 테스트 (~406 passed)
+├── infrastructure/              ← 배포/인프라
+│   ├── docker/                    Dockerfile.api, Dockerfile.streamlit, docker-compose.yml
+│   └── presets/                   기본 설정 프리셋
+├── docs/                        ← 모든 문서 (사용설명서 docx 포함)
+├── mockups/                     ← UI 목업 HTML (개발 참조용)
+├── mep/                         ← MEP 시퀀스 데이터 (sequences.json)
+├── samples/                     ← 샘플 데이터 (.scheduler, json, xlsx)
+├── conftest.py                  ← pytest sys.path 설정 (src/backend 노출)
+├── pyproject.toml               ← package-dir = src/backend
+├── .gitignore
+└── CLAUDE.md
 ```
+
+### Import 규칙
+
+- 모든 backend 코드는 `from core.X` / `from tools.X` 형태 사용
+- `pythonpath = ["src/backend"]` (pyproject.toml) + `conftest.py` 가 자동 설정
+- 외부에서 import 시: `pip install -e .` 후 `from core.X` 사용 가능
+- mep/, samples/는 데이터 폴더 — 코드 import 대상 아님
+
+### Core 모듈 (src/backend/core/)
+
+  db.py / models.py / billing.py / cashflow.py / cost.py / delay_analysis.py
+  productivity.py / change_order.py / dashboard.py / dashboard_logic.py
+  data_health.py / next_actions.py / evm_explain.py / workflows.py
+  budget_importer.py / schedule_importer.py / relationship_inference.py
+  evm.py / s_curve.py / cpm.py / report_parser.py (v3.1: Vision AI)
+
+### Tools 모듈 (src/backend/tools/)
+
+  billing_tools / dashboard_tools / material_tools / cost_tools / cashflow_tools
+  delay_tools / productivity_tools / change_order_tools / import_tools
+  relationship_tools / construction_tools / diagnostic_tools / analysis_tools
+  calibration_tools / sequence_tools
 
 ## Current State (2026-05-22)
 
@@ -75,6 +95,11 @@ scripts/
 | v2.7 | (local) | — | complete | Schedule delay analyzer, productivity analyzer |
 | v2.8 | (local) | — | complete | Change order processor (+ apply_change_order 실반영) |
 | v2.9 | (local) | — | complete | Quick Wins: 활성 프로젝트 컨텍스트, 기준공정표(Baseline), 능동 경고 |
+| v3.0 | (local) | — | complete | 모바일 현장 입력 시스템 (NAS Docker 배포) |
+| v3.1 | (local) | — | complete | 공사일보 사진→데이터 자동 추출 (Vision AI + Excel 파서) |
+| v3.2 | (local) | — | complete | 멀티 Vision 프로바이더 (Gemini 기본값, Claude 옵션) |
+| v3.3 | (local) | — | complete | 카메라 우선 3단계 UX, app_mobile.py + app_report_scan.py 통합 |
+| v3.4 | (local) | — | complete | **폴더 재구성**: src/{backend,frontend}/, tests/ 루트로, infrastructure/ 도입 |
 
 ### MCP Tools (67 total)
 

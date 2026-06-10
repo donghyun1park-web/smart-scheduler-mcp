@@ -1,30 +1,31 @@
 version: "3.9"
 
 # ────────────────────────────────────────────────────────────────
-# Smart Scheduler — NAS Docker Compose  (v3.3)
+# Smart Scheduler — NAS Docker Compose  (v3.4)
 #
 # 사용법 (NAS SSH 접속 후):
 #   cp .env.example .env        # GEMINI_API_KEY 등 입력
-#   docker-compose -f docker/docker-compose.yml up -d
+#   docker-compose -f infrastructure/docker/docker-compose.yml up -d
 #
 # .scheduler 파일 위치:
 #   NAS: /volume1/scheduler/현장명.scheduler
 #   컨테이너: /data/현장명.scheduler
 #
-# 핸드폰 북마크 URL (v3.3: 공사일보 촬영 기능 통합, 포트 8501 하나로 통일):
+# 핸드폰 북마크 URL (포트 8501 하나로 통일):
 #   건축:     http://NAS_IP:8501?discipline=건축&db=/data/현장.scheduler
 #   기계설비:  http://NAS_IP:8501?discipline=기계설비&db=/data/현장.scheduler
 #   전기설비:  http://NAS_IP:8501?discipline=전기설비&db=/data/현장.scheduler
 #   토목:     http://NAS_IP:8501?discipline=토목&db=/data/현장.scheduler
 #
-# ※ v3.3 변경: report-scanner(8502) 서비스 제거 → app_mobile.py에 통합
+# v3.4 변경: 폴더 재구성 — src/{backend,frontend}/, infrastructure/docker/
+# v3.3 변경: report-scanner(8502) 서비스 제거 → app_mobile.py에 통합
 # ────────────────────────────────────────────────────────────────
 
 services:
   api:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile.api
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.api
     container_name: scheduler-api
     ports:
       - "8000:8000"
@@ -41,8 +42,8 @@ services:
 
   mobile:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile.streamlit
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.streamlit
     container_name: scheduler-mobile
     ports:
       - "8501:8501"
@@ -50,7 +51,7 @@ services:
       - API_URL=http://api:8000                    # 컨테이너 내부 통신
       - DEFAULT_DB_PATH=/data/현장.scheduler
       - STREAMLIT_APP=frontend/app_mobile.py
-      # Vision AI — 공사일보 촬영 기능 (v3.3: app_mobile.py에 통합)
+      # Vision AI — 공사일보 촬영 기능 (app_mobile.py에 통합)
       - VISION_PROVIDER=${VISION_PROVIDER:-gemini}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}         # 무료: https://aistudio.google.com
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
@@ -59,7 +60,6 @@ services:
       api:
         condition: service_healthy
     restart: unless-stopped
-  # ※ report-scanner(8502) 서비스는 v3.3에서 mobile(8501)로 통합됨
 
 volumes:
   scheduler-data:

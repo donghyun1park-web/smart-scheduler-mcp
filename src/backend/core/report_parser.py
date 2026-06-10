@@ -89,6 +89,14 @@ def _call_gemini_vision(image_bytes: bytes, mime_type: str) -> dict[str, Any]:
     무료 티어: 15 RPM / 1,500 RPD (일 1,500장 무료).
     비용: ~$0.0003/장 (유료 전환 시).
     """
+    # API 키 먼저 체크 (패키지 import 전) — 환경 문제와 설정 문제 구분
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY 환경변수가 설정되지 않았습니다.\n"
+            "https://aistudio.google.com 에서 무료 발급 가능."
+        )
+
     try:
         from google import genai
         from google.genai import types as genai_types
@@ -96,13 +104,6 @@ def _call_gemini_vision(image_bytes: bytes, mime_type: str) -> dict[str, Any]:
         raise RuntimeError(
             "google-genai 패키지 필요: pip install google-genai"
         ) from e
-
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY 환경변수가 설정되지 않았습니다.\n"
-            "https://aistudio.google.com 에서 무료 발급 가능."
-        )
 
     model_name = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
     client = genai.Client(api_key=api_key)
@@ -128,14 +129,15 @@ def _call_claude_vision(
     ANTHROPIC_API_KEY 환경변수 필요.
     비용: ~$0.003/장.
     """
+    # API 키 먼저 체크 (패키지 import 전)
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.")
+
     try:
         import anthropic
     except ImportError as e:
         raise RuntimeError("anthropic 패키지 필요: pip install anthropic") from e
-
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.")
 
     client = anthropic.Anthropic(api_key=api_key)
     b64 = base64.standard_b64encode(image_bytes).decode()

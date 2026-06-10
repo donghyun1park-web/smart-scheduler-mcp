@@ -3,13 +3,13 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # 의존성 먼저 설치 (레이어 캐싱)
-COPY backend/requirements.txt ./requirements.txt
+COPY src/backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 소스 복사
-COPY backend/ ./backend/
+# 소스 복사 (v3.4 신규 구조)
+COPY src/backend/ ./backend/
 
-# PYTHONPATH 설정 (core/ 임포트용)
+# PYTHONPATH 설정 (core/, tools/ 임포트용)
 ENV PYTHONPATH=/app/backend
 
 EXPOSE 8000
