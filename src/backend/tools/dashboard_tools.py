@@ -117,3 +117,21 @@ def get_site_alerts(
 
     as_of_date = d.fromisoformat(as_of) if as_of else None
     return scan_alerts(resolve_db_path(db_path), as_of=as_of_date)
+
+
+def get_kakao_briefing(
+    db_path: str = "",
+) -> dict[str, str]:
+    """카카오톡 붙여넣기용 브리핑 텍스트를 생성합니다.
+
+    이모지 불릿 + 짧은 줄 구성으로 카톡 단체방에 그대로 붙여넣거나,
+    PlayMCP 카카오톡 도구로 바로 전송할 수 있습니다.
+
+    Parameters
+    ----------
+    db_path : .scheduler 파일 경로 (생략 시 활성 프로젝트 사용)
+    """
+    from core.context import resolve_db_path
+    from core.kakao_format import format_briefing_for_kakao
+
+    return {"text": format_briefing_for_kakao(resolve_db_path(db_path))}

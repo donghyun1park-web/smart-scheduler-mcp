@@ -100,6 +100,8 @@ smart-scheduler-mcp/
 | v3.2 | (local) | — | complete | 멀티 Vision 프로바이더 (Gemini 기본값, Claude 옵션) |
 | v3.3 | (local) | — | complete | 카메라 우선 3단계 UX, app_mobile.py + app_report_scan.py 통합 |
 | v3.4 | (local) | — | complete | **폴더 재구성**: src/{backend,frontend}/, tests/ 루트로, infrastructure/ 도입 |
+| v3.5 | (local) | — | complete | 토공사 견적/BOQ 파서/CPM 어댑터 (v2.3 zip 머지) |
+| v3.6 | (local) | — | complete | **카카오톡 완전 통합**: 챗봇 스킬서버(/kakao/skill), 일보 사진 카톡 전송→AI 저장, 텍스트 한줄 보고, kakao_users 매핑(SCHEMA v5), cloudflared 터널, get_kakao_briefing MCP tool |
 
 ### MCP Tools (67 total)
 
@@ -120,6 +122,7 @@ smart-scheduler-mcp/
 **Context (v2.9)**: set_active_project, get_active_project, clear_active_project (db_path 자동 해결)
 **Baseline (v2.9)**: establish_baseline, list_baselines, compare_to_baseline (기준공정표 대비 지연 측정)
 **Alerts (v2.9)**: get_site_alerts (자재납기/CO/공정 능동 경고; get_site_briefing에도 자동 포함)
+**Kakao (v3.6)**: get_kakao_briefing (카톡 붙여넣기용 브리핑 텍스트 — PlayMCP 연계 가능)
 **Other**: apply_sequences, generate_report, calibrate_completion_date, run_field_uat_workflow
 
 ### AI Usage Guide
@@ -137,6 +140,7 @@ smart-scheduler-mcp/
 - 활성 프로젝트 컨텍스트(v2.9): `set_active_project`로 db_path를 한 번 등록하면 이후 모든 도구에서 db_path를 생략할 수 있다. 비기술 사용자(건축담당, 공무과장 등)에게 유용하다.
 - 기준공정표(v2.9): 착공 시 `establish_baseline`(dry_run=False)으로 기준을 확정하고, 이후 `compare_to_baseline`으로 현재 공정 대비 지연일수(finish_drift_days)를 확인한다. 여러 기준선을 등록해 revision별 비교가 가능하다.
 - 능동 경고(v2.9): `get_site_alerts`로 자재 납기 초과·CO 승인 대기·미반영 CO·공정 부진을 🔴/🟡 수준으로 확인한다. `get_site_briefing`에도 경고가 자동 포함되므로 아침 브리핑 한 번으로 당일 조치 항목을 파악할 수 있다.
+- 카카오톡 연동(v3.6): 담당자는 카톡 채널 챗봇에 일보 사진을 보내거나 "위생배관 70% 8명" 텍스트로 보고한다(설정: docs/KAKAO_SETUP_GUIDE.md). 소장 브리핑은 `get_kakao_briefing`으로 카톡 텍스트를 만들어 PlayMCP(본인 카톡방 전송)나 복사-붙여넣기로 공유한다.
 - 만회대책/다음 행동 문구는 초안, 후보, 검토 필요 표현을 사용하며 최종 판단은 현장 책임자가 한다.
 
 ## Conventions

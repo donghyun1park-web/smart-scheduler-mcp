@@ -31,7 +31,7 @@ from core.models import (
 from core.progress import calculate_quantity_progress
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 def initialize_database(path: str | Path) -> None:
@@ -285,6 +285,13 @@ def initialize_database(path: str | Path) -> None:
                 ON notification_logs(activity_id);
             CREATE INDEX IF NOT EXISTS idx_notification_logs_sent
                 ON notification_logs(is_sent);
+            CREATE TABLE IF NOT EXISTS kakao_users (
+                bot_user_key TEXT PRIMARY KEY,
+                owner_name TEXT NOT NULL DEFAULT '',
+                discipline TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
             """
         )
         row = conn.execute("SELECT version FROM schema_version").fetchone()
@@ -1603,3 +1610,55 @@ def _notification_log_from_row(row: sqlite3.Row) -> NotificationLog:
         is_sent=bool(row["is_sent"]),
         created_at=row["created_at"],
     )
+
+
+# ─── 카카오톡 챗봇 사용자 매핑 (v3.6) ────────────────────────────────────────
+
+def upsert_kakao_user(
+    path: str | Path,
+    bot_user_key: str,
+    owner_name: str,
+    discipline: str,
+) -> dict[str, str]:
+    """카카오 botUserKey ↔ 담당자(이름·공종) 매핑을 저장/갱신한다."""
+    now = _now()
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            INSERT INTO kakao_users(bot_user_key, owner_name, discipline, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(bot_user_key) DO UPDATE SET
+                owner_name = excluded.owner_name,
+                discipline = excluded.discipline,
+                updated_at = excluded.updated_at
+            """,
+            (bot_user_key, owner_name, discipline, now, now),
+        )
+    return {"bot_user_key": bot_user_key, "owner_name": owner_name, "discipline": discipline}
+
+
+def get_kakao_user(path: str | Path, bot_user_key: str) -> dict[str, str] | None:
+    with _connect(path) as conn:
+        row = conn.execute(
+            "SELECT * FROM kakao_users WHERE bot_user_key = ?", (bot_user_key,)
+        ).fetchone()
+    if row is None:
+        return None
+    return {
+        "bot_user_key": row["bot_user_key"],
+        "owner_name": row["owner_name"],
+        "discipline": row["discipline"],
+    }
+
+
+def list_kakao_users(path: str | Path) -> list[dict[str, str]]:
+    with _connect(path) as conn:
+        rows = conn.execute("SELECT * FROM kakao_users ORDER BY discipline").fetchall()
+    return [
+        {
+            "bot_user_key": row["bot_user_key"],
+            "owner_name": row["owner_name"],
+            "discipline": row["discipline"],
+        }
+        for row in rows
+    ]

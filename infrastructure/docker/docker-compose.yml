@@ -61,6 +61,20 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # 카카오 챗봇 스킬서버용 HTTPS 터널 (v3.6)
+  # TUNNEL_TOKEN 없으면 컨테이너만 재시작 반복 — 사용 전 .env에 토큰 설정
+  # 발급: Cloudflare Zero Trust → Networks → Tunnels (docs/KAKAO_SETUP_GUIDE.md 참조)
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: scheduler-tunnel
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN:-}
+    depends_on:
+      - api
+    restart: unless-stopped
+    profiles: ["kakao"]        # docker-compose --profile kakao up -d 로만 기동
+
 volumes:
   scheduler-data:
     # NAS 볼륨을 직접 마운트하려면 아래 주석 해제 후 경로 수정

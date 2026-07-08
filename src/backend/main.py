@@ -7,6 +7,9 @@ POST /api/daily-record         일일 실적 저장
 GET  /api/dashboard-data       소장 대시보드 KPI
 POST /api/update-status        활동 상태 변경 (기존 유지)
 POST /api/parse-daily-report   공사일보 사진/Excel → 구조화 데이터 (v3.1)
+POST /kakao/skill              카카오 오픈빌더 챗봇 스킬서버 (v3.6)
+GET  /api/kakao-briefing       카톡 붙여넣기용 브리핑 텍스트 (v3.6)
+GET  /api/kakao-reminder       카톡 붙여넣기용 미제출 리마인더 (v3.6)
 """
 from __future__ import annotations
 
@@ -17,7 +20,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel
 import uvicorn
 
@@ -25,14 +28,25 @@ import uvicorn
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from core.db import create_daily_record, list_activities
+from core.kakao_format import format_briefing_for_kakao, format_reminder_for_kakao
+from core.kakao_report import handle_utterance
+from core.kakao_skill import build_callback_waiting, build_simple_text, parse_skill_payload
 from core.models import DailyRecord
 from core.notifications import update_activity_status
 from core.report_parser import parse_report_excel, parse_report_image
 
-app = FastAPI(title="Smart Scheduler API", version="3.0")
+app = FastAPI(title="Smart Scheduler API", version="3.6")
 
 # ── 기본 DB 경로 (Docker 볼륨 마운트 기준) ────────────────────────────────────
 _DEFAULT_DB = os.environ.get("DEFAULT_DB_PATH", "/data/현장.scheduler")
+
+
+@app.on_event("startup")
+def _ensure_schema() -> None:
+    """기존 DB에 신규 테이블(kakao_users 등) 마이그레이션 보증. DB 없으면 건너뜀."""
+    from core.db import initialize_database
+    if Path(_DEFAULT_DB).exists():
+        initialize_database(_DEFAULT_DB)
 
 
 # ─── Request / Response models ────────────────────────────────────────────────
@@ -172,6 +186,79 @@ async def parse_daily_report(
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"파싱 오류: {e}")
+
+
+# ─── 카카오톡 챗봇 스킬서버 (v3.6) ────────────────────────────────────────────
+
+# 이미지 파싱(10~20초)이 오픈빌더 타임아웃(5초)을 넘길 때:
+#   callbackUrl 있으면 → useCallback 응답 후 백그라운드 처리 → 콜백 전송
+#   없으면 → 처리 결과를 보관하고 사용자가 "결과" 입력 시 회신
+_LAST_RESULTS: dict[str, str] = {}
+
+
+def _process_and_callback(db_path: str, bot_user_key: str, utterance: str,
+                          image_urls: tuple[str, ...], callback_url: str) -> None:
+    """백그라운드: 처리 후 콜백 전송(가능하면) + 결과 보관."""
+    import requests as _requests
+    try:
+        text = handle_utterance(
+            db_path, bot_user_key=bot_user_key, utterance=utterance, image_urls=image_urls
+        )
+    except Exception as e:
+        text = f"❌ 처리 중 오류: {e}"
+    _LAST_RESULTS[bot_user_key] = text
+    if callback_url:
+        try:
+            _requests.post(callback_url, json=build_simple_text(text), timeout=10)
+        except Exception:
+            pass  # 콜백 실패 시 "결과" 조회로 대체
+
+
+@app.post("/kakao/skill")
+async def kakao_skill(request: Request, background_tasks: BackgroundTasks) -> dict[str, Any]:
+    """카카오 i 오픈빌더 스킬서버 엔드포인트."""
+    body = await request.json()
+    payload = parse_skill_payload(body)
+    db_path = _DEFAULT_DB
+
+    # 비동기 결과 조회
+    if payload.utterance in ("결과", "확인"):
+        text = _LAST_RESULTS.pop(payload.bot_user_key, "")
+        return build_simple_text(text or "처리 중이거나 결과가 없습니다. 잠시 후 다시 입력해주세요.")
+
+    # 이미지 첨부 → 오래 걸림 → 백그라운드 처리
+    if payload.image_urls:
+        background_tasks.add_task(
+            _process_and_callback,
+            db_path, payload.bot_user_key, payload.utterance,
+            payload.image_urls, payload.callback_url,
+        )
+        if payload.callback_url:
+            return build_callback_waiting("🤖 AI가 일보를 읽는 중입니다... (10~20초)")
+        return build_simple_text(
+            "🤖 일보 접수! AI가 읽는 중입니다.\n잠시 후 \"결과\" 라고 입력하면 확인됩니다."
+        )
+
+    # 텍스트 발화는 즉시 처리 (빠름)
+    text = handle_utterance(
+        db_path, bot_user_key=payload.bot_user_key, utterance=payload.utterance
+    )
+    return build_simple_text(text)
+
+
+@app.get("/api/kakao-briefing")
+def kakao_briefing(db_path: str = Query(default=_DEFAULT_DB)) -> dict[str, str]:
+    """카톡 붙여넣기용 브리핑 텍스트 (대시보드 복사 버튼용)."""
+    return {"text": format_briefing_for_kakao(db_path)}
+
+
+@app.get("/api/kakao-reminder")
+def kakao_reminder(
+    db_path: str = Query(default=_DEFAULT_DB),
+    base_url: str = Query(default="", description="모바일 입력 앱 주소"),
+) -> dict[str, str]:
+    """카톡 붙여넣기용 미제출 리마인더 텍스트."""
+    return {"text": format_reminder_for_kakao(db_path, base_url=base_url)}
 
 
 @app.get("/health")

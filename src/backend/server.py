@@ -56,6 +56,7 @@ from tools.dashboard_tools import (
     get_dashboard_report,
     get_delayed_activities,
     get_discipline_progress,
+    get_kakao_briefing,
     get_site_alerts,
     get_site_briefing,
 )
@@ -122,6 +123,7 @@ def build_server() -> FastMCP:
     mcp.tool()(billing_s_curve)
     # v2.4: Dashboard
     mcp.tool()(get_site_briefing)
+    mcp.tool()(get_kakao_briefing)
     mcp.tool()(get_dashboard_report)
     mcp.tool()(get_discipline_progress)
     mcp.tool()(get_delayed_activities)
