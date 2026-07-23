@@ -66,13 +66,15 @@ smart-scheduler-mcp/
   data_health.py / next_actions.py / evm_explain.py / workflows.py
   budget_importer.py / schedule_importer.py / relationship_inference.py
   evm.py / s_curve.py / cpm.py / report_parser.py (v3.1: Vision AI)
+  kakao_skill.py / kakao_report.py / kakao_format.py (v3.6: 카톡 챗봇)
+  labor.py (v3.7: 직종별 인력·man-day 히스토그램)
 
 ### Tools 모듈 (src/backend/tools/)
 
   billing_tools / dashboard_tools / material_tools / cost_tools / cashflow_tools
   delay_tools / productivity_tools / change_order_tools / import_tools
   relationship_tools / construction_tools / diagnostic_tools / analysis_tools
-  calibration_tools / sequence_tools
+  calibration_tools / sequence_tools / labor_tools (v3.7)
 
 ## Current State (2026-05-22)
 
@@ -102,6 +104,7 @@ smart-scheduler-mcp/
 | v3.4 | (local) | — | complete | **폴더 재구성**: src/{backend,frontend}/, tests/ 루트로, infrastructure/ 도입 |
 | v3.5 | (local) | — | complete | 토공사 견적/BOQ 파서/CPM 어댑터 (v2.3 zip 머지) |
 | v3.6 | (local) | — | complete | **카카오톡 완전 통합**: 챗봇 스킬서버(/kakao/skill), 일보 사진 카톡 전송→AI 저장, 텍스트 한줄 보고, kakao_users 매핑(SCHEMA v5), cloudflared 터널, get_kakao_briefing MCP tool |
+| v3.7 | (local) | — | complete | **인력(Man-day) 관리**: 실제 출역일보 참조 — 직종별 출력인원(labor_records, SCHEMA v6), 인력 히스토그램·누계곡선, 계약 man-day 대비 실투입률, 피크 인원, 외국인 비율. MCP tool 6종 |
 
 ### MCP Tools (67 total)
 
@@ -123,6 +126,7 @@ smart-scheduler-mcp/
 **Baseline (v2.9)**: establish_baseline, list_baselines, compare_to_baseline (기준공정표 대비 지연 측정)
 **Alerts (v2.9)**: get_site_alerts (자재납기/CO/공정 능동 경고; get_site_briefing에도 자동 포함)
 **Kakao (v3.6)**: get_kakao_briefing (카톡 붙여넣기용 브리핑 텍스트 — PlayMCP 연계 가능)
+**Labor (v3.7)**: input_labor_record, get_labor_by_trade, get_labor_histogram, get_peak_manpower, get_labor_budget_status, get_foreign_labor_summary (직종별 출력인원·인력곡선·계약대비·피크·외국인)
 **Other**: apply_sequences, generate_report, calibrate_completion_date, run_field_uat_workflow
 
 ### AI Usage Guide

@@ -161,6 +161,25 @@ class CostItem:
 
 
 @dataclass(frozen=True)
+class LaborRecord:
+    """직종별 일일 출력인원 1건 (출역일보 기반, v3.7).
+
+    실제 현장의 출역일보는 협력사·공종 단위로 직종별 인원을 집계한다.
+    (예: 관리자 8, 배관공 25, 덕트공 12 ...). activity 연결은 선택.
+    """
+    labor_id: str
+    work_date: date
+    trade: str                    # 직종 (관리자/배관공/덕트공/보온공/시공팀 ...)
+    headcount: int = 0
+    foreign_count: int = 0        # 외국인 인원 (headcount 중 일부)
+    discipline: str = ""          # 공종 (일반설비/자동제어/기계설비 ...)
+    company: str = ""             # 협력사명
+    activity_id: str = ""         # 선택적 활동 연결 (빈 문자열 = 미연결)
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
 class BaselineSnapshot:
     snapshot_id: str
     baseline_id: str

@@ -30,6 +30,14 @@ from tools.productivity_tools import (
     analyze_productivity,
     get_productivity_trend,
 )
+from tools.labor_tools import (
+    get_foreign_labor_summary,
+    get_labor_budget_status,
+    get_labor_by_trade,
+    get_labor_histogram,
+    get_peak_manpower,
+    input_labor_record,
+)
 from tools.change_order_tools import (
     add_change_order_item,
     apply_change_order,
@@ -160,6 +168,12 @@ def build_server() -> FastMCP:
     # v2.7: Productivity
     mcp.tool()(analyze_productivity)
     mcp.tool()(get_productivity_trend)
+    mcp.tool()(input_labor_record)
+    mcp.tool()(get_labor_by_trade)
+    mcp.tool()(get_labor_histogram)
+    mcp.tool()(get_peak_manpower)
+    mcp.tool()(get_labor_budget_status)
+    mcp.tool()(get_foreign_labor_summary)
     # v2.8: Change order management
     mcp.tool()(create_change_order)
     mcp.tool()(add_change_order_item)

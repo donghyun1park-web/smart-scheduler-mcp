@@ -21,6 +21,7 @@ from core.models import (
     DailyRecord,
     DelayEvent,
     InspectionRecord,
+    LaborRecord,
     MaterialRecord,
     NotificationLog,
     Project,
@@ -31,7 +32,7 @@ from core.models import (
 from core.progress import calculate_quantity_progress
 
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 def initialize_database(path: str | Path) -> None:
@@ -292,6 +293,20 @@ def initialize_database(path: str | Path) -> None:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS labor_records (
+                labor_id TEXT PRIMARY KEY,
+                work_date TEXT NOT NULL,
+                trade TEXT NOT NULL,
+                headcount INTEGER NOT NULL DEFAULT 0,
+                foreign_count INTEGER NOT NULL DEFAULT 0,
+                discipline TEXT NOT NULL DEFAULT '',
+                company TEXT NOT NULL DEFAULT '',
+                activity_id TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_labor_date ON labor_records(work_date);
+            CREATE INDEX IF NOT EXISTS idx_labor_discipline ON labor_records(discipline);
             """
         )
         row = conn.execute("SELECT version FROM schema_version").fetchone()
@@ -1662,3 +1677,75 @@ def list_kakao_users(path: str | Path) -> list[dict[str, str]]:
         }
         for row in rows
     ]
+
+
+# ─── 출력인원(Man-day) 기록 (v3.7) ──────────────────────────────────────────
+
+def add_labor_record(path: str | Path, record: LaborRecord) -> LaborRecord:
+    """직종별 일일 출력인원 1건 저장."""
+    stamped = _stamp(record)
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            INSERT INTO labor_records(
+                labor_id, work_date, trade, headcount, foreign_count,
+                discipline, company, activity_id, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                stamped.labor_id,
+                stamped.work_date.isoformat(),
+                stamped.trade,
+                int(stamped.headcount),
+                int(stamped.foreign_count),
+                stamped.discipline,
+                stamped.company,
+                stamped.activity_id,
+                stamped.created_at,
+                stamped.updated_at,
+            ),
+        )
+    return stamped
+
+
+def list_labor_records(
+    path: str | Path,
+    *,
+    discipline: str | None = None,
+    company: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> list[LaborRecord]:
+    query = "SELECT * FROM labor_records WHERE 1=1"
+    params: list[Any] = []
+    if discipline:
+        query += " AND discipline = ?"
+        params.append(discipline)
+    if company:
+        query += " AND company = ?"
+        params.append(company)
+    if start_date:
+        query += " AND work_date >= ?"
+        params.append(start_date.isoformat())
+    if end_date:
+        query += " AND work_date <= ?"
+        params.append(end_date.isoformat())
+    query += " ORDER BY work_date, trade"
+    with _connect(path) as conn:
+        rows = conn.execute(query, params).fetchall()
+    return [_labor_record_from_row(row) for row in rows]
+
+
+def _labor_record_from_row(row: sqlite3.Row) -> LaborRecord:
+    return LaborRecord(
+        labor_id=row["labor_id"],
+        work_date=date.fromisoformat(row["work_date"]),
+        trade=row["trade"],
+        headcount=int(row["headcount"]),
+        foreign_count=int(row["foreign_count"]),
+        discipline=row["discipline"],
+        company=row["company"],
+        activity_id=row["activity_id"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
