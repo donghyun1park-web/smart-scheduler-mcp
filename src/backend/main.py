@@ -7,6 +7,7 @@ POST /api/daily-record         일일 실적 저장
 GET  /api/dashboard-data       소장 대시보드 KPI
 POST /api/update-status        활동 상태 변경 (기존 유지)
 POST /api/parse-daily-report   공사일보 사진/Excel → 구조화 데이터 (v3.1)
+POST /api/parse-labor-report   출역일보 사진 → 직종별 인원 (v3.7)
 POST /kakao/skill              카카오 오픈빌더 챗봇 스킬서버 (v3.6)
 GET  /api/kakao-briefing       카톡 붙여넣기용 브리핑 텍스트 (v3.6)
 GET  /api/kakao-reminder       카톡 붙여넣기용 미제출 리마인더 (v3.6)
@@ -31,9 +32,14 @@ from core.db import create_daily_record, list_activities
 from core.kakao_format import format_briefing_for_kakao, format_reminder_for_kakao
 from core.kakao_report import handle_utterance
 from core.kakao_skill import build_callback_waiting, build_simple_text, parse_skill_payload
+from core.labor import save_parsed_labor
 from core.models import DailyRecord
 from core.notifications import update_activity_status
-from core.report_parser import parse_report_excel, parse_report_image
+from core.report_parser import (
+    parse_labor_report_image,
+    parse_report_excel,
+    parse_report_image,
+)
 
 app = FastAPI(title="Smart Scheduler API", version="3.6")
 
@@ -182,6 +188,40 @@ async def parse_daily_report(
 
         return {"ok": True, "parsed": parsed, "warnings": parsed.get("warnings", [])}
 
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"파싱 오류: {e}")
+
+
+@app.post("/api/parse-labor-report")
+async def parse_labor_report(
+    file: UploadFile = File(..., description="출역일보 이미지 (JPG/PNG)"),
+    db_path: str = Form(default=_DEFAULT_DB),
+    discipline: str = Form(default=""),
+    company: str = Form(default=""),
+    save: bool = Form(default=False),
+) -> dict[str, Any]:
+    """출역일보 이미지 → 직종별 인원 파싱 (v3.7).
+
+    save=True면 labor_records에 즉시 저장, False면 미리보기(dry_run).
+    """
+    content = await file.read()
+    filename = (file.filename or "").lower()
+    if filename.endswith(".png"):
+        mime = "image/png"
+    elif filename.endswith(".webp"):
+        mime = "image/webp"
+    else:
+        mime = "image/jpeg"
+
+    try:
+        parsed = parse_labor_report_image(content, mime)
+        result = save_parsed_labor(
+            db_path, parsed, discipline=discipline, company=company, dry_run=not save
+        )
+        return {"ok": True, "parsed": parsed, "save_result": result,
+                "warnings": parsed.get("warnings", [])}
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:

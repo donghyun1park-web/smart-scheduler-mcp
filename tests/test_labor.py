@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from unittest.mock import patch
+
 from core import db
 from core.labor import (
     classify_trade_group,
@@ -18,8 +20,10 @@ from core.labor import (
     labor_histogram,
     peak_manpower,
     record_labor,
+    save_parsed_labor,
 )
 from core.models import Calendar, Project
+from core.report_parser import _normalize_labor, _safe_int
 
 
 @pytest.fixture
@@ -189,3 +193,101 @@ class TestForeign:
         # 외국인 5+6+2+8 = 21 / 138
         assert res["foreign_mandays"] == 21
         assert res["foreign_pct"] == round(21 / 138 * 100, 1)
+
+
+# ─── 출역일보 파싱 정규화 (report_parser) ─────────────────────────────────────
+
+class TestNormalizeLabor:
+    def test_safe_int_variants(self):
+        assert _safe_int("1,236") == 1236
+        assert _safe_int("-") == 0
+        assert _safe_int(None) == 0
+        assert _safe_int(5) == 5
+        assert _safe_int("abc") == 0
+
+    def test_drops_total_rows_and_computes(self):
+        raw = {
+            "work_date": "2026-05-22",
+            "labor": [
+                {"trade": "소장", "today": "1", "cumulative": "135"},
+                {"trade": "직영", "today": "2", "cumulative": "1,236"},
+                {"trade": "합계", "today": "3", "cumulative": "1371"},  # 제외돼야 함
+            ],
+            "foreign_count": "0",
+            "warnings": [],
+        }
+        out = _normalize_labor(raw)
+        trades = [x["trade"] for x in out["labor"]]
+        assert "합계" not in trades
+        assert len(out["labor"]) == 2
+        assert out["total_today"] == 3       # 1+2 (합계행 제외 후 자동합산)
+        assert out["labor"][1]["cumulative"] == 1236
+
+    def test_empty_labor_warns(self):
+        out = _normalize_labor({"labor": [], "warnings": []})
+        assert any("인식" in w for w in out["warnings"])
+
+
+# ─── save_parsed_labor ────────────────────────────────────────────────────────
+
+class TestSaveParsedLabor:
+    _PARSED = {
+        "work_date": "2026-05-22",
+        "company": "HDC랩스",
+        "discipline": "일반설비",
+        "labor": [
+            {"trade": "소장", "today": 1, "cumulative": 135},
+            {"trade": "직영", "today": 2, "cumulative": 1236},
+            {"trade": "안전", "today": 0, "cumulative": 577},  # today 0 → 제외
+        ],
+        "foreign_count": 3,
+        "total_today": 3,
+    }
+
+    def test_dry_run_preview(self, labor_db):
+        res = save_parsed_labor(labor_db, self._PARSED, dry_run=True)
+        assert res["ok"] and res["dry_run"]
+        assert res["saved_count"] == 2       # today>0 인 소장·직영만
+        assert res["total_headcount"] == 3
+
+    def test_save_persists(self, labor_db):
+        before = len(db.list_labor_records(labor_db, start_date=date(2026, 5, 22)))
+        res = save_parsed_labor(labor_db, self._PARSED, dry_run=False)
+        assert res["ok"] and res["saved_count"] == 2
+        recs = db.list_labor_records(labor_db, start_date=date(2026, 5, 22))
+        assert len(recs) - before == 2
+        # 외국인은 금일 최다 직종(직영 2명)에 귀속
+        jikyeong = [r for r in recs if r.trade == "직영"][0]
+        assert jikyeong.foreign_count == 3
+        assert jikyeong.company == "HDC랩스"
+
+    def test_discipline_override(self, labor_db):
+        save_parsed_labor(labor_db, self._PARSED, discipline="자동제어", dry_run=False)
+        recs = db.list_labor_records(labor_db, discipline="자동제어",
+                                     start_date=date(2026, 5, 22))
+        assert len(recs) == 2
+
+    def test_empty_rejected(self, labor_db):
+        res = save_parsed_labor(labor_db, {"labor": []}, dry_run=True)
+        assert res["ok"] is False
+
+
+# ─── 카카오 출역일보 라우팅 ───────────────────────────────────────────────────
+
+class TestKakaoLaborRouting:
+    def test_labor_photo_saves(self, labor_db):
+        from core.kakao_report import handle_utterance
+        parsed = {
+            "work_date": "2026-05-22", "company": "HDC랩스", "discipline": "일반설비",
+            "labor": [{"trade": "직영", "today": 5, "cumulative": 1236}],
+            "foreign_count": 1, "total_today": 5, "warnings": [],
+        }
+        with patch("core.kakao_report._download_image", return_value=b"\xff\xd8\xff"), \
+             patch("core.kakao_report.parse_labor_report_image", return_value=parsed):
+            reply = handle_utterance(
+                labor_db, bot_user_key="u1", utterance="출역",
+                image_urls=("https://secure.kakao.com/l1.jpg",),
+            )
+        assert "출역일보 저장 완료" in reply
+        recs = db.list_labor_records(labor_db, start_date=date(2026, 5, 22))
+        assert any(r.trade == "직영" and r.headcount == 5 for r in recs)

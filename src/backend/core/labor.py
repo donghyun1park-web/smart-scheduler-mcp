@@ -77,6 +77,81 @@ def record_labor(
     return {"ok": True, "labor_id": saved.labor_id}
 
 
+# ─── 출역일보 파싱 결과 저장 (v3.7) ─────────────────────────────────────────────
+
+def save_parsed_labor(
+    db_path: str | Path,
+    parsed: dict[str, Any],
+    *,
+    discipline: str = "",
+    company: str = "",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """report_parser.parse_labor_report_image() 결과 → labor_records 저장.
+
+    parsed["labor"]의 각 직종별 '금일(today)' 인원을 하루치 LaborRecord로 저장한다.
+    외국인 인원(foreign_count)은 인원이 가장 많은 직종에 귀속시킨다(근사).
+    discipline/company 인자가 있으면 파싱값보다 우선한다.
+    """
+    from datetime import date as _date
+
+    labor = parsed.get("labor") or []
+    if not labor:
+        return {"ok": False, "error": "저장할 직종별 인원이 없습니다."}
+
+    work_date = _date.fromisoformat(parsed.get("work_date") or _date.today().isoformat())
+    disc = (discipline or parsed.get("discipline") or "").strip()
+    comp = (company or parsed.get("company") or "").strip()
+
+    # 외국인 배분: 금일 인원 최다 직종에 몰아준다 (양식상 총계만 있는 경우 대응)
+    foreign_total = int(parsed.get("foreign_count") or 0)
+    top_idx = max(range(len(labor)), key=lambda i: int(labor[i].get("today") or 0)) if labor else -1
+
+    entries = [
+        {
+            "work_date": work_date,
+            "trade": str(row.get("trade") or "").strip(),
+            "headcount": int(row.get("today") or 0),
+            "foreign_count": foreign_total if i == top_idx else 0,
+            "discipline": disc,
+            "company": comp,
+        }
+        for i, row in enumerate(labor)
+        if int(row.get("today") or 0) > 0 and str(row.get("trade") or "").strip()
+    ]
+
+    if not entries:
+        return {"ok": False, "error": "금일 투입 인원이 0입니다."}
+
+    if dry_run:
+        return {
+            "ok": True, "dry_run": True,
+            "work_date": work_date.isoformat(),
+            "saved_count": len(entries),
+            "total_headcount": sum(e["headcount"] for e in entries),
+            "preview": entries,
+        }
+
+    saved = 0
+    for e in entries:
+        db.add_labor_record(db_path, LaborRecord(
+            labor_id=str(uuid.uuid4()),
+            work_date=e["work_date"],
+            trade=e["trade"],
+            headcount=e["headcount"],
+            foreign_count=e["foreign_count"],
+            discipline=e["discipline"],
+            company=e["company"],
+        ))
+        saved += 1
+    return {
+        "ok": True,
+        "work_date": work_date.isoformat(),
+        "saved_count": saved,
+        "total_headcount": sum(e["headcount"] for e in entries),
+    }
+
+
 # ─── 직종별 누계 ───────────────────────────────────────────────────────────────
 
 def labor_by_trade(

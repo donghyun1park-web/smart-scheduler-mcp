@@ -25,13 +25,19 @@ import requests
 
 from core import db
 from core.kakao_format import format_briefing_for_kakao
+from core.labor import save_parsed_labor
 from core.models import DailyRecord
-from core.report_parser import parse_report_image, parsed_report_to_remarks
+from core.report_parser import (
+    parse_labor_report_image,
+    parse_report_image,
+    parsed_report_to_remarks,
+)
 
 HELP_TEXT = (
     "🤖 사용법 안내\n"
     "─────────\n"
-    "📷 공사일보 사진을 보내면 → AI가 읽어서 자동 저장\n"
+    "📷 공사일보 사진 → AI가 읽어서 자동 저장\n"
+    "👷 출역일보는 \"출역\" 붙여서 사진 전송 → 직종별 인원 저장\n"
     "✏️ 텍스트 보고: \"위생배관 70% 8명\"\n"
     "📊 \"현황\" → 오늘 브리핑\n"
     "🙋 최초 1회 등록: \"등록 기계설비 김기계\""
@@ -72,8 +78,10 @@ def handle_utterance(
     if utterance in ("현황", "브리핑", "오늘", "상황"):
         return format_briefing_for_kakao(db_path, as_of=today)
 
-    # 3) 일보 사진
+    # 3) 사진 — 출역일보(직종별 인원) vs 공사일보(작업) 분기
     if image_urls:
+        if _is_labor_report(utterance):
+            return _handle_labor_images(db_path, image_urls, user=user)
         return _handle_report_images(db_path, image_urls, user=user, today=today)
 
     # 4) 텍스트 한 줄 보고
@@ -87,6 +95,51 @@ def handle_utterance(
 
 
 # ─── 내부 처리 ────────────────────────────────────────────────────────────────
+
+_LABOR_KEYWORDS = ("출역", "인원", "출력인원", "노무")
+
+
+def _is_labor_report(utterance: str) -> bool:
+    return any(kw in utterance for kw in _LABOR_KEYWORDS)
+
+
+def _handle_labor_images(
+    db_path: str | Path,
+    image_urls: tuple[str, ...],
+    *,
+    user: dict[str, str] | None,
+) -> str:
+    """출역일보 사진 → 직종별 인원 파싱 → labor_records 저장."""
+    try:
+        image_bytes = _download_image(image_urls[0])
+    except Exception as e:
+        return f"❌ 사진 다운로드 실패: {e}\n다시 보내주세요. (이미지 링크는 10분만 유효합니다)"
+
+    try:
+        parsed = parse_labor_report_image(image_bytes)
+    except Exception as e:
+        return f"❌ AI 파싱 실패: {e}"
+
+    discipline = (user or {}).get("discipline", "")
+    result = save_parsed_labor(db_path, parsed, discipline=discipline, dry_run=False)
+    if not result.get("ok"):
+        return (
+            "⚠️ 출역일보는 읽었지만 직종별 인원을 인식하지 못했습니다.\n"
+            f"사유: {result.get('error', '-')}\n웹앱에서 직접 입력해주세요."
+        )
+
+    top = sorted(parsed.get("labor", []), key=lambda x: -int(x.get("today") or 0))[:5]
+    lines = "\n".join(f"  • {r['trade']} {r['today']}명" for r in top if int(r.get("today") or 0) > 0)
+    foreign = parsed.get("foreign_count", 0)
+    return (
+        "✅ 출역일보 저장 완료!\n"
+        "─────────\n"
+        f"📅 {result['work_date']}\n"
+        f"👷 금일 총 {result['total_headcount']}명 ({result['saved_count']}개 직종)\n"
+        + (f"🌏 외국인 {foreign}명\n" if foreign else "")
+        + lines
+    )
+
 
 def _handle_report_images(
     db_path: str | Path,

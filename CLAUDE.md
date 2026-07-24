@@ -105,6 +105,7 @@ smart-scheduler-mcp/
 | v3.5 | (local) | — | complete | 토공사 견적/BOQ 파서/CPM 어댑터 (v2.3 zip 머지) |
 | v3.6 | (local) | — | complete | **카카오톡 완전 통합**: 챗봇 스킬서버(/kakao/skill), 일보 사진 카톡 전송→AI 저장, 텍스트 한줄 보고, kakao_users 매핑(SCHEMA v5), cloudflared 터널, get_kakao_briefing MCP tool |
 | v3.7 | (local) | — | complete | **인력(Man-day) 관리**: 실제 출역일보 참조 — 직종별 출력인원(labor_records, SCHEMA v6), 인력 히스토그램·누계곡선, 계약 man-day 대비 실투입률, 피크 인원, 외국인 비율. MCP tool 6종 |
+| v3.7.1 | (local) | — | complete | **출역일보 사진 파싱**: parse_labor_report_image(Vision AI) → 직종별 인원 자동 저장. 카톡 "출역"+사진 라우팅, POST /api/parse-labor-report |
 
 ### MCP Tools (67 total)
 

@@ -54,6 +54,34 @@ _EXTRACT_PROMPT = """\
 ```
 """
 
+# 출역일보(노무 출력인원 보고서) 전용 추출 프롬프트 (v3.7)
+_LABOR_EXTRACT_PROMPT = """\
+이 출역일보(건설현장 일일 노무 출력인원 보고서) 이미지에서 직종별 인원을 추출하세요.
+보통 "공종별 인원현황" 또는 "직종별 인원현황" 표에 직종/전일누계/금일/누계 열이 있습니다.
+
+규칙:
+- 날짜는 YYYY-MM-DD 형식
+- "금일"(오늘 투입) 인원을 today, "누계" 인원을 cumulative에 정수로 (없거나 '-'는 0)
+- 직종명(관리자/소장/공사/공무/안전/SHOP/직영/배관/덕트/보온/공조/위생/시공팀 등)은 한국어 그대로
+- 합계 행은 제외 (개별 직종만)
+- JSON 코드블록만 반환 (설명 없이)
+
+```json
+{
+  "work_date": "YYYY-MM-DD",
+  "site_name": "현장명",
+  "company": "업체명(협력사)",
+  "discipline": "공종(일반설비/자동제어 등, 없으면 빈문자열)",
+  "labor": [
+    {"trade": "직종명", "today": 0, "cumulative": 0}
+  ],
+  "foreign_count": 0,
+  "total_today": 0,
+  "total_cumulative": 0
+}
+```
+"""
+
 # ─── 이미지 파싱 — 프로바이더 디스패처 ──────────────────────────────────────────
 
 # 환경변수로 선택 (기본값: gemini — 무료 티어 + 최저가)
@@ -63,18 +91,24 @@ _PROVIDER = os.environ.get("VISION_PROVIDER", "gemini").lower()
 def parse_report_image(
     image_bytes: bytes,
     mime_type: str = "image/jpeg",
+    *,
+    prompt: str | None = None,
 ) -> dict[str, Any]:
     """카메라 사진 → Vision AI → 구조화 dict.
 
     VISION_PROVIDER 환경변수로 프로바이더 선택:
       gemini (기본값) — GEMINI_API_KEY 필요, 무료 티어 제공
       claude          — ANTHROPIC_API_KEY 필요
+
+    prompt: 추출 프롬프트 (기본 공사일보용 _EXTRACT_PROMPT).
+            출역일보 등 다른 양식은 parse_labor_report_image()를 사용.
     """
+    prompt = prompt or _EXTRACT_PROMPT
     provider = os.environ.get("VISION_PROVIDER", _PROVIDER)
     if provider == "gemini":
-        return _call_gemini_vision(image_bytes, mime_type)
+        return _call_gemini_vision(image_bytes, mime_type, prompt=prompt)
     elif provider == "claude":
-        return _call_claude_vision(image_bytes, mime_type)
+        return _call_claude_vision(image_bytes, mime_type, prompt=prompt)
     else:
         raise RuntimeError(
             f"지원하지 않는 VISION_PROVIDER: '{provider}'. "
@@ -82,7 +116,9 @@ def parse_report_image(
         )
 
 
-def _call_gemini_vision(image_bytes: bytes, mime_type: str) -> dict[str, Any]:
+def _call_gemini_vision(
+    image_bytes: bytes, mime_type: str, *, prompt: str = _EXTRACT_PROMPT
+) -> dict[str, Any]:
     """Gemini Vision API 호출 (google-genai 신규 SDK).
 
     GEMINI_API_KEY 환경변수 필요.
@@ -109,7 +145,7 @@ def _call_gemini_vision(image_bytes: bytes, mime_type: str) -> dict[str, Any]:
     client = genai.Client(api_key=api_key)
 
     image_part = genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
-    text_part  = genai_types.Part.from_text(text=_EXTRACT_PROMPT)
+    text_part  = genai_types.Part.from_text(text=prompt)
 
     response = client.models.generate_content(
         model=model_name,
@@ -123,6 +159,7 @@ def _call_claude_vision(
     mime_type: str,
     *,
     model: str = "claude-3-5-haiku-20241022",
+    prompt: str = _EXTRACT_PROMPT,
 ) -> dict[str, Any]:
     """Claude Vision API 호출.
 
@@ -156,7 +193,7 @@ def _call_claude_vision(
                         "data": b64,
                     },
                 },
-                {"type": "text", "text": _EXTRACT_PROMPT},
+                {"type": "text", "text": prompt},
             ],
         }],
     )
@@ -358,6 +395,76 @@ def _parse_date(raw: str | None) -> str | None:
         return f"{y}-{mo}-{d}"
 
     return None
+
+
+# ─── 출역일보(노무) 파싱 (v3.7) ──────────────────────────────────────────────
+
+def parse_labor_report_image(
+    image_bytes: bytes,
+    mime_type: str = "image/jpeg",
+) -> dict[str, Any]:
+    """출역일보 사진 → Vision AI → 직종별 인원 구조화 dict.
+
+    반환:
+      {
+        "work_date", "site_name", "company", "discipline",
+        "labor": [{"trade", "today", "cumulative"}],
+        "foreign_count", "total_today", "total_cumulative", "warnings"
+      }
+    """
+    raw = parse_report_image(image_bytes, mime_type, prompt=_LABOR_EXTRACT_PROMPT)
+    return _normalize_labor(raw)
+
+
+def _normalize_labor(result: dict[str, Any]) -> dict[str, Any]:
+    """모델 응답 → 출역일보 표준 구조 (금일/누계 정수화, 합계 검증)."""
+    warnings: list[str] = [w for w in result.get("warnings", []) if "리스트 필드" not in str(w)]
+
+    labor: list[dict[str, Any]] = []
+    for item in result.get("labor") or []:
+        if not isinstance(item, dict):
+            continue
+        trade = str(item.get("trade") or "").strip()
+        if not trade or trade in ("합계", "소계", "계"):
+            continue
+        labor.append({
+            "trade": trade,
+            "today": _safe_int(item.get("today")),
+            "cumulative": _safe_int(item.get("cumulative")),
+        })
+
+    total_today = _safe_int(result.get("total_today")) or sum(x["today"] for x in labor)
+    total_cumulative = _safe_int(result.get("total_cumulative")) or sum(x["cumulative"] for x in labor)
+
+    if not labor:
+        warnings.append("직종별 인원을 인식하지 못했습니다 — 수동 입력 필요")
+
+    return {
+        "work_date": result.get("work_date") or date.today().isoformat(),
+        "site_name": str(result.get("site_name") or ""),
+        "company": str(result.get("company") or ""),
+        "discipline": str(result.get("discipline") or ""),
+        "labor": labor,
+        "foreign_count": _safe_int(result.get("foreign_count")),
+        "total_today": total_today,
+        "total_cumulative": total_cumulative,
+        "warnings": warnings,
+    }
+
+
+def _safe_int(value: Any) -> int:
+    """'-', None, '1,236' 등 → 정수 (실패 시 0)."""
+    if value is None:
+        return 0
+    if isinstance(value, (int, float)):
+        return int(value)
+    s = str(value).strip().replace(",", "")
+    if s in ("", "-", "–"):
+        return 0
+    try:
+        return int(float(s))
+    except (ValueError, TypeError):
+        return 0
 
 
 def parsed_report_to_remarks(parsed: dict[str, Any]) -> str:
