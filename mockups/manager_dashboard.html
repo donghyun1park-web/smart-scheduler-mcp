@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>현장소장 대시보드</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0f1729;
+    font-family: 'Malgun Gothic', -apple-system, sans-serif;
+    font-size: 14px;
+    color: #e0e8f0;
+    min-height: 100vh;
+  }
+  /* ─ 사이드바 ─ */
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 220px;
+    background: #162035;
+    padding: 20px 0;
+    flex-shrink: 0;
+    border-right: 1px solid #1e2e4a;
+  }
+  .sidebar-logo {
+    padding: 0 20px 20px;
+    border-bottom: 1px solid #1e2e4a;
+  }
+  .sidebar-logo .logo-title { font-size: 15px; font-weight: 800; color: #60a5fa; }
+  .sidebar-logo .logo-sub { font-size: 11px; color: #6b8aaa; margin-top: 2px; }
+  .sidebar-menu { padding: 12px 0; }
+  .menu-item {
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #8aafcf;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+  }
+  .menu-item.active {
+    color: #60a5fa;
+    background: rgba(96,165,250,0.08);
+    border-left-color: #60a5fa;
+    font-weight: 700;
+  }
+  .menu-item .icon { font-size: 15px; }
+  .sidebar-project {
+    margin: 12px;
+    background: rgba(96,165,250,0.1);
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 11px;
+    color: #7daac8;
+    border: 1px solid rgba(96,165,250,0.2);
+  }
+  .sidebar-project strong { color: #60a5fa; display: block; font-size: 12px; margin-bottom: 3px; }
+
+  /* ─ 메인 ─ */
+  .main { flex: 1; padding: 20px 24px; overflow-y: auto; }
+  .top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .top-bar h1 { font-size: 20px; font-weight: 800; color: #e8f2ff; }
+  .top-bar .date-info { font-size: 12px; color: #6b8aaa; }
+  .alert-pill {
+    background: rgba(239,68,68,0.15);
+    border: 1px solid rgba(239,68,68,0.4);
+    color: #f87171;
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  /* ─ 알림 배너 ─ */
+  .alert-banner {
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.35);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .alert-banner .alert-icon { font-size: 18px; flex-shrink: 0; }
+  .alert-banner .alert-title { font-size: 13px; font-weight: 700; color: #f87171; margin-bottom: 4px; }
+  .alert-banner .alert-items { font-size: 12px; color: #c8a0a0; line-height: 1.6; }
+
+  /* ─ 카드 그리드 ─ */
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .card {
+    background: #162035;
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid #1e2e4a;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .card.blue::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+  .card.green::before { background: linear-gradient(90deg, #10b981, #34d399); }
+  .card.orange::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+  .card.red::before { background: linear-gradient(90deg, #ef4444, #f87171); }
+  .card-label { font-size: 11px; color: #6b8aaa; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .card-value { font-size: 28px; font-weight: 800; margin: 6px 0 2px; }
+  .card.blue .card-value { color: #60a5fa; }
+  .card.green .card-value { color: #34d399; }
+  .card.orange .card-value { color: #fbbf24; }
+  .card.red .card-value { color: #f87171; }
+  .card-sub { font-size: 11px; color: #6b8aaa; }
+  .card-icon { position: absolute; right: 14px; top: 14px; font-size: 22px; opacity: 0.35; }
+  .card-diff { font-size: 11px; }
+  .card-diff.neg { color: #f87171; }
+  .card-diff.pos { color: #34d399; }
+
+  /* ─ 2열 레이아웃 ─ */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .three-col { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; margin-bottom: 14px; }
+
+  /* ─ 패널 ─ */
+  .panel {
+    background: #162035;
+    border-radius: 12px;
+    border: 1px solid #1e2e4a;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid #1e2e4a;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .panel-title { font-size: 13px; font-weight: 700; color: #c8d8e8; }
+  .panel-badge { font-size: 10px; background: rgba(96,165,250,0.15); color: #60a5fa; padding: 2px 8px; border-radius: 10px; }
+  .panel-body { padding: 14px 16px; }
+
+  /* ─ 공종별 진행률 ─ */
+  .discipline-row { margin-bottom: 12px; }
+  .disc-header { display: flex; justify-content: space-between; margin-bottom: 5px; }
+  .disc-name { font-size: 13px; color: #c8d8e8; font-weight: 600; }
+  .disc-pct { font-size: 13px; font-weight: 700; }
+  .bar-bg { height: 8px; background: #1e2e4a; border-radius: 4px; position: relative; }
+  .bar-plan { position: absolute; height: 100%; border-radius: 4px; background: rgba(96,165,250,0.2); }
+  .bar-actual { position: absolute; height: 100%; border-radius: 4px; }
+  .disc-sub { font-size: 11px; color: #6b8aaa; margin-top: 3px; display: flex; justify-content: space-between; }
+
+  /* ─ 일일 실적 입력 현황 ─ */
+  .input-table { width: 100%; border-collapse: collapse; }
+  .input-table th {
+    font-size: 10px;
+    color: #6b8aaa;
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid #1e2e4a;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .input-table td { padding: 9px 8px; border-bottom: 1px solid #111d2e; font-size: 13px; }
+  .input-table tr:last-child td { border-bottom: none; }
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .dot-ok { background: #34d399; }
+  .dot-pending { background: #fbbf24; animation: pulse 1.5s infinite; }
+  .dot-none { background: #4b5563; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .worker-tag { background: rgba(96,165,250,0.12); color: #60a5fa; border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
+
+  /* ─ S-Curve 차트 ─ */
+  .chart-area { padding: 10px 0 0; }
+  .chart-svg-wrap { position: relative; }
+  svg.scurve { width: 100%; height: 160px; }
+  .legend { display: flex; gap: 16px; font-size: 11px; color: #6b8aaa; padding: 8px 0 0; }
+  .legend-dot { display: inline-block; width: 10px; height: 3px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+  /* ─ 경고 리스트 ─ */
+  .alert-list { list-style: none; }
+  .alert-list li {
+    display: flex;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid #111d2e;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .alert-list li:last-child { border-bottom: none; }
+  .alert-lv { font-size: 14px; flex-shrink: 0; }
+  .alert-text { color: #b0c8e0; }
+  .alert-text strong { color: #e0eaf8; }
+  .alert-time { font-size: 10px; color: #4b6180; margin-left: auto; flex-shrink: 0; }
+
+  /* ─ 공사일보 스캔 현황 ─ */
+  .report-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .report-card {
+    background: #0f1f35;
+    border-radius: 8px;
+    padding: 10px;
+    border: 1px solid #1e2e4a;
+    text-align: center;
+  }
+  .report-card .team { font-size: 11px; color: #6b8aaa; }
+  .report-card .report-date { font-size: 12px; font-weight: 700; color: #c8d8e8; margin: 4px 0 2px; }
+  .report-card .items { font-size: 11px; color: #34d399; }
+  .report-card .items.warn { color: #f87171; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- 사이드바 -->
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-title">🏗 Smart Scheduler</div>
+      <div class="logo-sub">현장소장 대시보드</div>
+    </div>
+    <div class="sidebar-menu">
+      <div class="menu-item active"><span class="icon">🏠</span> 현장 현황</div>
+      <div class="menu-item"><span class="icon">📊</span> 공정 분석</div>
+      <div class="menu-item"><span class="icon">💰</span> 원가/기성</div>
+      <div class="menu-item"><span class="icon">⚠️</span> 지연 관리</div>
+      <div class="menu-item"><span class="icon">📋</span> 설계변경</div>
+      <div class="menu-item"><span class="icon">📄</span> 공사일보</div>
+      <div class="menu-item"><span class="icon">👷</span> 생산성</div>
+      <div class="menu-item"><span class="icon">📈</span> 현금흐름</div>
+    </div>
+    <div class="sidebar-project">
+      <strong>홍은동 355번지</strong>
+      가로주택 신축공사<br>
+      2025.03.01 ~ 2026.12.31<br>
+      D-205일
+    </div>
+  </div>
+
+  <!-- 메인 콘텐츠 -->
+  <div class="main">
+
+    <!-- 상단 바 -->
+    <div class="top-bar">
+      <div>
+        <h1>📋 현장 일일 현황</h1>
+        <div class="date-info">2026년 6월 9일 (화) · 오전 09:42 기준</div>
+      </div>
+      <div class="alert-pill">🔴 경고 3건</div>
+    </div>
+
+    <!-- 알림 배너 -->
+    <div class="alert-banner">
+      <div class="alert-icon">⚠️</div>
+      <div>
+        <div class="alert-title">오늘 조치 필요 항목</div>
+        <div class="alert-items">
+          🔴 자재 납기 초과: 위생배관 자재 — 예정 6/7, 현재 미납 (+2일)&nbsp;&nbsp;|&nbsp;&nbsp;
+          🔴 CO 승인 대기: 설계변경 #CO-003 — 47일 대기중&nbsp;&nbsp;|&nbsp;&nbsp;
+          🟡 공정 부진: 전기설비 SPI 0.82 — 목표 대비 -12%
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI 카드 4개 -->
+    <div class="cards">
+      <div class="card blue">
+        <div class="card-icon">📐</div>
+        <div class="card-label">전체 공정률</div>
+        <div class="card-value">63%</div>
+        <div class="card-sub">계획 <strong style="color:#60a5fa">67%</strong></div>
+        <div class="card-diff neg">▼ 계획 대비 -4%</div>
+      </div>
+      <div class="card green">
+        <div class="card-icon">💰</div>
+        <div class="card-label">기성 달성</div>
+        <div class="card-value">58%</div>
+        <div class="card-sub">₩4.1억 / ₩7.1억</div>
+        <div class="card-diff pos">▲ 이번달 +₩0.8억</div>
+      </div>
+      <div class="card orange">
+        <div class="card-icon">👷</div>
+        <div class="card-label">오늘 투입 인원</div>
+        <div class="card-value">34명</div>
+        <div class="card-sub">어제 29명 → +5명</div>
+        <div class="card-diff pos">▲ 전일 대비 +17%</div>
+      </div>
+      <div class="card red">
+        <div class="card-icon">⏱</div>
+        <div class="card-label">잔여 공기</div>
+        <div class="card-value">205일</div>
+        <div class="card-sub">준공 2026.12.31</div>
+        <div class="card-diff neg">⚠ 예상 지연 +8일</div>
+      </div>
+    </div>
+
+    <!-- 공종별 진행률 + 실적 입력 현황 -->
+    <div class="three-col">
+
+      <!-- 공종별 진행률 -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">📊 공종별 진행률</div>
+          <div class="panel-badge">S-Curve</div>
+        </div>
+        <div class="panel-body">
+
+          <!-- S-Curve 간략 차트 -->
+          <div class="chart-area">
+            <svg class="scurve" viewBox="0 0 400 140">
+              <!-- 그리드 -->
+              <line x1="40" y1="10" x2="40" y2="120" stroke="#1e2e4a" stroke-width="1"/>
+              <line x1="40" y1="120" x2="390" y2="120" stroke="#1e2e4a" stroke-width="1"/>
+              <line x1="40" y1="30" x2="390" y2="30" stroke="#1e2e4a" stroke-width="0.5" stroke-dasharray="4,4"/>
+              <line x1="40" y1="55" x2="390" y2="55" stroke="#1e2e4a" stroke-width="0.5" stroke-dasharray="4,4"/>
+              <line x1="40" y1="80" x2="390" y2="80" stroke="#1e2e4a" stroke-width="0.5" stroke-dasharray="4,4"/>
+              <line x1="40" y1="105" x2="390" y2="105" stroke="#1e2e4a" stroke-width="0.5" stroke-dasharray="4,4"/>
+              <!-- Y축 레이블 -->
+              <text x="33" y="33" font-size="9" fill="#4b6180" text-anchor="end">100%</text>
+              <text x="33" y="58" font-size="9" fill="#4b6180" text-anchor="end">75%</text>
+              <text x="33" y="83" font-size="9" fill="#4b6180" text-anchor="end">50%</text>
+              <text x="33" y="108" font-size="9" fill="#4b6180" text-anchor="end">25%</text>
+              <text x="33" y="123" font-size="9" fill="#4b6180" text-anchor="end">0%</text>
+              <!-- X축 레이블 -->
+              <text x="40" y="133" font-size="9" fill="#4b6180" text-anchor="middle">3월</text>
+              <text x="110" y="133" font-size="9" fill="#4b6180" text-anchor="middle">5월</text>
+              <text x="180" y="133" font-size="9" fill="#4b6180" text-anchor="middle">7월</text>
+              <text x="250" y="133" font-size="9" fill="#4b6180" text-anchor="middle">9월</text>
+              <text x="320" y="133" font-size="9" fill="#4b6180" text-anchor="middle">11월</text>
+              <text x="390" y="133" font-size="9" fill="#4b6180" text-anchor="middle">12월</text>
+              <!-- 계획 S-Curve (파란 점선) -->
+              <polyline points="40,120 80,118 110,113 150,103 180,88 220,70 250,55 280,40 320,28 360,22 390,19"
+                fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.7"/>
+              <!-- 실적 S-Curve (실선) -->
+              <polyline points="40,120 80,119 110,115 150,107 180,95 220,78 246,68"
+                fill="none" stroke="#34d399" stroke-width="2.5"/>
+              <!-- 현재 점 -->
+              <circle cx="246" cy="68" r="5" fill="#34d399"/>
+              <text x="256" y="65" font-size="9" fill="#34d399" font-weight="bold">63%</text>
+              <!-- 계획 현재 점 -->
+              <circle cx="246" cy="58" r="4" fill="none" stroke="#3b82f6" stroke-width="1.5"/>
+              <text x="256" y="55" font-size="9" fill="#3b82f6">67%</text>
+              <!-- 오늘 수직선 -->
+              <line x1="246" y1="18" x2="246" y2="120" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>
+              <text x="248" y="26" font-size="8" fill="#fbbf24">오늘</text>
+            </svg>
+            <div class="legend">
+              <span><span class="legend-dot" style="background:#34d399"></span>실적</span>
+              <span><span class="legend-dot" style="background:#3b82f6; opacity:0.7"></span>계획</span>
+            </div>
+          </div>
+
+          <div style="margin-top:14px">
+            <!-- 건축 -->
+            <div class="discipline-row">
+              <div class="disc-header">
+                <div class="disc-name">🏛 건축</div>
+                <div class="disc-pct" style="color:#60a5fa">72% <span style="font-size:10px;color:#6b8aaa">/ 계획 75%</span></div>
+              </div>
+              <div class="bar-bg">
+                <div class="bar-plan" style="width:75%"></div>
+                <div class="bar-actual" style="width:72%;background:linear-gradient(90deg,#3b82f6,#60a5fa)"></div>
+              </div>
+              <div class="disc-sub"><span>👷 12명</span><span class="card-diff neg">▼ -3%</span></div>
+            </div>
+            <!-- 토목 -->
+            <div class="discipline-row">
+              <div class="disc-header">
+                <div class="disc-name">⛏ 토목</div>
+                <div class="disc-pct" style="color:#34d399">88% <span style="font-size:10px;color:#6b8aaa">/ 계획 85%</span></div>
+              </div>
+              <div class="bar-bg">
+                <div class="bar-plan" style="width:85%"></div>
+                <div class="bar-actual" style="width:88%;background:linear-gradient(90deg,#10b981,#34d399)"></div>
+              </div>
+              <div class="disc-sub"><span>👷 5명</span><span class="card-diff pos">▲ +3%</span></div>
+            </div>
+            <!-- 기계설비 -->
+            <div class="discipline-row">
+              <div class="disc-header">
+                <div class="disc-name">⚙️ 기계설비</div>
+                <div class="disc-pct" style="color:#fbbf24">65% <span style="font-size:10px;color:#6b8aaa">/ 계획 68%</span></div>
+              </div>
+              <div class="bar-bg">
+                <div class="bar-plan" style="width:68%"></div>
+                <div class="bar-actual" style="width:65%;background:linear-gradient(90deg,#f59e0b,#fbbf24)"></div>
+              </div>
+              <div class="disc-sub"><span>👷 8명</span><span class="card-diff neg">▼ -3%</span></div>
+            </div>
+            <!-- 전기설비 -->
+            <div class="discipline-row">
+              <div class="disc-header">
+                <div class="disc-name">⚡ 전기설비</div>
+                <div class="disc-pct" style="color:#f87171">51% <span style="font-size:10px;color:#6b8aaa">/ 계획 63%</span></div>
+              </div>
+              <div class="bar-bg">
+                <div class="bar-plan" style="width:63%"></div>
+                <div class="bar-actual" style="width:51%;background:linear-gradient(90deg,#ef4444,#f87171)"></div>
+              </div>
+              <div class="disc-sub"><span>👷 9명</span><span class="card-diff neg">▼ -12% ⚠</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 오른쪽: 실적 입력 + 경고 -->
+      <div style="display:flex;flex-direction:column;gap:14px;">
+
+        <!-- 일일 실적 입력 현황 -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">📥 오늘 실적 입력 현황</div>
+            <div class="panel-badge">3/5 완료</div>
+          </div>
+          <div class="panel-body" style="padding:0">
+            <table class="input-table">
+              <thead>
+                <tr>
+                  <th>공종</th>
+                  <th>담당자</th>
+                  <th>진행률</th>
+                  <th>인원</th>
+                  <th>상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>🏛 건축</td>
+                  <td style="color:#c8d8e8">이건축</td>
+                  <td style="color:#60a5fa;font-weight:700">72%</td>
+                  <td><span class="worker-tag">12명</span></td>
+                  <td><span class="status-dot dot-ok"></span><span style="color:#34d399;font-size:11px">09:15 완료</span></td>
+                </tr>
+                <tr>
+                  <td>⛏ 토목</td>
+                  <td style="color:#c8d8e8">박토목</td>
+                  <td style="color:#34d399;font-weight:700">88%</td>
+                  <td><span class="worker-tag">5명</span></td>
+                  <td><span class="status-dot dot-ok"></span><span style="color:#34d399;font-size:11px">08:50 완료</span></td>
+                </tr>
+                <tr>
+                  <td>⚙️ 기계</td>
+                  <td style="color:#c8d8e8">김기계</td>
+                  <td style="color:#fbbf24;font-weight:700">65%</td>
+                  <td><span class="worker-tag">8명</span></td>
+                  <td><span class="status-dot dot-ok"></span><span style="color:#34d399;font-size:11px">09:33 완료</span></td>
+                </tr>
+                <tr>
+                  <td>⚡ 전기</td>
+                  <td style="color:#c8d8e8">최전기</td>
+                  <td style="color:#6b8aaa">—</td>
+                  <td><span class="worker-tag" style="background:rgba(251,191,36,0.1);color:#fbbf24">미입력</span></td>
+                  <td><span class="status-dot dot-pending"></span><span style="color:#fbbf24;font-size:11px">입력 대기</span></td>
+                </tr>
+                <tr>
+                  <td>🔥 소방</td>
+                  <td style="color:#c8d8e8">정소방</td>
+                  <td style="color:#6b8aaa">—</td>
+                  <td><span class="worker-tag" style="background:rgba(75,85,99,0.2);color:#6b8aaa">미입력</span></td>
+                  <td><span class="status-dot dot-none"></span><span style="color:#6b8aaa;font-size:11px">미제출</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 능동 경고 -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">🔔 능동 경고 (get_site_alerts)</div>
+            <div class="panel-badge" style="background:rgba(239,68,68,0.15);color:#f87171">3건</div>
+          </div>
+          <div class="panel-body" style="padding:10px 16px">
+            <ul class="alert-list">
+              <li>
+                <span class="alert-lv">🔴</span>
+                <div class="alert-text"><strong>자재 납기 초과</strong> — 위생배관 자재<br>예정 6/7, 미납 +2일. 즉시 확인 필요</div>
+                <div class="alert-time">긴급</div>
+              </li>
+              <li>
+                <span class="alert-lv">🔴</span>
+                <div class="alert-text"><strong>CO 승인 대기</strong> — #CO-003 설계변경<br>발주처 미응답 47일. 공기 영향 +8일</div>
+                <div class="alert-time">긴급</div>
+              </li>
+              <li>
+                <span class="alert-lv">🟡</span>
+                <div class="alert-text"><strong>공정 부진</strong> — 전기설비 SPI 0.82<br>계획 대비 -12%. 만회대책 검토</div>
+                <div class="alert-time">주의</div>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- 공사일보 스캔 현황 -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">📄 공사일보 수신 현황 (AI 파싱)</div>
+            <div class="panel-badge" style="background:rgba(16,185,129,0.15);color:#34d399">오늘 3건</div>
+          </div>
+          <div class="panel-body">
+            <div class="report-grid">
+              <div class="report-card">
+                <div class="team">⚙️ 기계설비팀</div>
+                <div class="report-date">2026-06-09</div>
+                <div class="items">✓ 작업 6건<br>설비 4종</div>
+              </div>
+              <div class="report-card">
+                <div class="team">🔧 협력사 A</div>
+                <div class="report-date">2026-06-09</div>
+                <div class="items">✓ 작업 4건<br>자재 2종</div>
+              </div>
+              <div class="report-card">
+                <div class="team">⚡ 전기설비팀</div>
+                <div class="report-date">2026-06-08</div>
+                <div class="items warn">⚠ 어제 일보<br>오늘 미수신</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

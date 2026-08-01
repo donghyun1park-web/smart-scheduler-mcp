@@ -1,0 +1,27 @@
+{
+  "schema": "smart-scheduler/excavation-stage-model",
+  "version": "0.1.0",
+  "description": "단계별(Stage) 굴착 모델 템플릿. 지하안전평가서 표5.23 기반. '단계 x 지층' 매트릭스로 토공사 공기 산정.",
+  "source_project": "홍은동 355번지 가로주택정비사업",
+  "site": {
+    "max_excavation_depth_m": 17.79,
+    "stage_area_m2": 5400.64,
+    "fleet": { "dump_truck": 7, "backhoe": 7 }
+  },
+  "stages": [
+    { "stage": 1, "layer": "토사",  "depth_m": 2.49, "area_m2": 5400.64, "estimated_days": 3,  "applied_days": 25 },
+    { "stage": 2, "layer": "풍화암", "depth_m": 1.50, "area_m2": 5400.64, "estimated_days": 3,  "applied_days": 25 },
+    { "stage": 3, "layer": "연암",  "depth_m": 2.50, "area_m2": 5400.64, "estimated_days": 10, "applied_days": 25 },
+    { "stage": 4, "layer": "연암",  "depth_m": 2.50, "area_m2": 5400.64, "estimated_days": 10, "applied_days": 25 },
+    { "stage": 5, "layer": "경암",  "depth_m": 3.00, "area_m2": 5400.64, "estimated_days": 23, "applied_days": 25 },
+    { "stage": 6, "layer": "경암",  "depth_m": 3.30, "area_m2": 5400.64, "estimated_days": 25, "applied_days": 25 },
+    { "stage": 7, "layer": "경암",  "depth_m": 2.50, "area_m2": 5400.64, "estimated_days": 19, "applied_days": 25 }
+  ],
+  "totals": {
+    "depth_check_m": 17.79,
+    "estimated_days_sum": 93,
+    "applied_days_sum": 175,
+    "padding_ratio": 1.88,
+    "note": "산정기간 합(93일)을 적용기간 합(175일)으로 보정 -> 평균 보정계수 1.88. 가시설 설치/계측/여유 반영분. 이 padding이 스케줄러가 자동화할 '이론->현장' 보정의 정량적 근거."
+  }
+}

@@ -137,6 +137,97 @@
         {"key": "panel", "name": "수신기 연결", "duration": 1},
         {"key": "interlock_test", "name": "연동/작동 시험", "duration": 1}
       ]
+    },
+    {
+      "discipline": "전기",
+      "key": "electrical_conduit_standard",
+      "name": "전기 매립 전선관 표준",
+      "steps": [
+        {"key": "sleeve", "name": "슬리브/박스 설치", "duration": 1},
+        {"key": "conduit", "name": "전선관 매립", "duration": 4},
+        {"key": "pull_wire", "name": "입선", "duration": 3},
+        {"key": "termination", "name": "결선/단말 처리", "duration": 2},
+        {"key": "test", "name": "절연/도통 시험", "duration": 1}
+      ]
+    },
+    {
+      "discipline": "전기",
+      "key": "electrical_power_panel_standard",
+      "name": "동력반/분전반 표준",
+      "steps": [
+        {"key": "carry_in", "name": "반 반입", "duration": 1},
+        {"key": "set", "name": "반 설치/고정", "duration": 2},
+        {"key": "main_cable", "name": "주간선 결선", "duration": 2},
+        {"key": "branch", "name": "분기회로 결선", "duration": 2},
+        {"key": "test", "name": "절연/통전 시험", "duration": 1}
+      ]
+    },
+    {
+      "discipline": "전기",
+      "key": "electrical_lighting_standard",
+      "name": "조명 표준",
+      "steps": [
+        {"key": "marking", "name": "조명 위치 먹매김", "duration": 1},
+        {"key": "fixture_set", "name": "조명기구 설치", "duration": 3},
+        {"key": "wiring", "name": "결선", "duration": 2},
+        {"key": "operation_test", "name": "점등 시험", "duration": 1}
+      ]
+    },
+    {
+      "discipline": "전기",
+      "key": "electrical_grounding_standard",
+      "name": "접지 표준",
+      "steps": [
+        {"key": "excavation", "name": "접지극 굴착", "duration": 1},
+        {"key": "rod", "name": "접지극/도체 매설", "duration": 2},
+        {"key": "bonding", "name": "본딩/연결", "duration": 1},
+        {"key": "resistance_test", "name": "접지저항 측정", "duration": 1}
+      ]
+    },
+    {
+      "discipline": "자동제어",
+      "key": "control_ddc_standard",
+      "name": "DDC 패널 표준",
+      "steps": [
+        {"key": "carry_in", "name": "DDC 패널 반입", "duration": 1},
+        {"key": "set", "name": "패널 설치", "duration": 1},
+        {"key": "wiring", "name": "I/O 결선", "duration": 3},
+        {"key": "loading", "name": "프로그램 로딩", "duration": 1},
+        {"key": "loop_test", "name": "포인트 점검", "duration": 2}
+      ]
+    },
+    {
+      "discipline": "자동제어",
+      "key": "control_instrumentation_standard",
+      "name": "계장 표준",
+      "steps": [
+        {"key": "sensor_install", "name": "센서/액추에이터 설치", "duration": 3},
+        {"key": "wiring", "name": "신호선 포설", "duration": 3},
+        {"key": "calibration", "name": "교정", "duration": 2},
+        {"key": "test", "name": "현장 시험", "duration": 1}
+      ]
+    },
+    {
+      "discipline": "자동제어",
+      "key": "control_bms_standard",
+      "name": "BMS 통합 표준",
+      "steps": [
+        {"key": "server_set", "name": "BMS 서버 설치", "duration": 1},
+        {"key": "network", "name": "통신망 구성", "duration": 2},
+        {"key": "integration", "name": "DDC 통합/그래픽 구축", "duration": 4},
+        {"key": "scenario_test", "name": "운영 시나리오 시험", "duration": 2}
+      ]
+    },
+    {
+      "discipline": "자동제어",
+      "key": "control_commissioning_standard",
+      "name": "자동제어 점검/시운전 표준",
+      "steps": [
+        {"key": "pre_check", "name": "예비 점검", "duration": 1},
+        {"key": "interlock", "name": "기계/전기 연동 시험", "duration": 3},
+        {"key": "trial_run", "name": "통합 시운전", "duration": 2},
+        {"key": "handover", "name": "성적서/인수인계", "duration": 1}
+      ]
     }
   ]
 }

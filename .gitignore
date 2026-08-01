@@ -1,11 +1,35 @@
+# ── Python ─────────────────────────────────────────────
 .venv/
 __pycache__/
 *.py[cod]
+*.egg-info/
+*.egg
+build/
+dist/
+
+# ── 캐시 ────────────────────────────────────────────────
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .codex_checkpoints/
 .coverage
 htmlcov/
-*.scheduler
+
+# ── 환경/시크릿 ─────────────────────────────────────────
 .env
+.env.local
+*.scheduler
+
+# ── IDE ────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── 운영체제 ────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── 작업물 ──────────────────────────────────────────────
+*.log
+node_modules/

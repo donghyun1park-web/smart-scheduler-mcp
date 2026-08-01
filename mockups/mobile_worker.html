@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>현장 실적 입력</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #f0f2f6;
+    font-family: 'Malgun Gothic', -apple-system, sans-serif;
+    font-size: 15px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    padding: 0;
+  }
+  .phone-frame {
+    width: 390px;
+    min-height: 844px;
+    background: #fff;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    border-radius: 44px;
+    margin: 20px;
+  }
+  .status-bar {
+    background: #1a56a0;
+    color: white;
+    padding: 14px 24px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .app-header {
+    background: #1a56a0;
+    color: white;
+    padding: 14px 20px 18px;
+    text-align: center;
+  }
+  .app-header h1 { font-size: 20px; font-weight: 700; }
+  .app-header .subtitle {
+    font-size: 12px;
+    opacity: 0.85;
+    margin-top: 3px;
+  }
+  .discipline-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.25);
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 8px;
+    border: 1.5px solid rgba(255,255,255,0.5);
+  }
+  .date-bar {
+    background: #e8f0fd;
+    color: #1a56a0;
+    text-align: center;
+    padding: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    border-bottom: 1px solid #c5d8f5;
+  }
+  .content { padding: 16px; }
+
+  .section-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+    margin-top: 14px;
+  }
+  .section-label:first-child { margin-top: 0; }
+
+  select, textarea {
+    width: 100%;
+    border: 1.5px solid #d1dce8;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 15px;
+    font-family: inherit;
+    color: #222;
+    background: #fafcff;
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
+  }
+  select:focus, textarea:focus { border-color: #1a56a0; background: #fff; }
+  .select-wrap { position: relative; }
+  .select-wrap::after {
+    content: '▾';
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #1a56a0;
+    font-size: 16px;
+    pointer-events: none;
+  }
+
+  /* 진행률 슬라이더 */
+  .progress-section {
+    background: #f5f8ff;
+    border-radius: 12px;
+    padding: 14px 16px;
+    border: 1.5px solid #d1dce8;
+  }
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .progress-label { font-size: 14px; color: #444; font-weight: 600; }
+  .progress-value {
+    font-size: 26px;
+    font-weight: 800;
+    color: #1a56a0;
+  }
+  .progress-value span { font-size: 16px; }
+  .slider-track {
+    height: 6px;
+    background: #dde5f0;
+    border-radius: 3px;
+    position: relative;
+    margin: 6px 0 10px;
+  }
+  .slider-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 65%;
+    background: linear-gradient(90deg, #1a56a0, #3b82f6);
+    border-radius: 3px;
+  }
+  .slider-thumb {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    background: white;
+    border: 3px solid #1a56a0;
+    border-radius: 50%;
+    top: 50%;
+    left: 65%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 2px 6px rgba(26,86,160,0.3);
+  }
+  .slider-marks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #999;
+    padding: 0 2px;
+  }
+  /* 이전 실적 표시 */
+  .prev-record {
+    font-size: 12px;
+    color: #888;
+    margin-top: 8px;
+    text-align: right;
+  }
+  .prev-record span { color: #e67e22; font-weight: 700; }
+
+  /* 인원 입력 */
+  .number-input-row {
+    display: flex;
+    align-items: center;
+    background: #fafcff;
+    border: 1.5px solid #d1dce8;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .num-btn {
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    color: #1a56a0;
+    background: #e8f0fd;
+    cursor: pointer;
+    font-weight: 300;
+    flex-shrink: 0;
+    user-select: none;
+  }
+  .num-val {
+    flex: 1;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: #222;
+  }
+
+  /* 공사일보 스캔 버튼 */
+  .scan-btn {
+    width: 100%;
+    background: #f0f7ff;
+    border: 2px dashed #93b4dc;
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #1a56a0;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .scan-icon { font-size: 28px; }
+
+  textarea { height: 80px; resize: none; }
+
+  /* 제출 버튼 */
+  .submit-btn {
+    width: 100%;
+    background: linear-gradient(135deg, #1a56a0, #3b82f6);
+    color: white;
+    border: none;
+    border-radius: 14px;
+    padding: 17px;
+    font-size: 17px;
+    font-weight: 800;
+    cursor: pointer;
+    margin-top: 20px;
+    box-shadow: 0 4px 16px rgba(26,86,160,0.35);
+    letter-spacing: 0.5px;
+  }
+  .submit-btn:active { transform: scale(0.98); }
+
+  /* 하단 최근 제출 기록 */
+  .recent-box {
+    background: #f8fffe;
+    border: 1px solid #c3e6d8;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-top: 14px;
+  }
+  .recent-title { font-size: 12px; color: #27ae60; font-weight: 700; margin-bottom: 8px; }
+  .recent-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #555;
+    padding: 3px 0;
+    border-bottom: 1px solid #e8f5f0;
+  }
+  .recent-row:last-child { border-bottom: none; }
+  .recent-row strong { color: #1a7a4a; }
+
+  .safe-area { height: 34px; }
+</style>
+</head>
+<body>
+<div class="phone-frame">
+  <!-- 상태바 -->
+  <div class="status-bar">
+    <span>09:42</span>
+    <span>● ● ●</span>
+    <span>WiFi 🔋 87%</span>
+  </div>
+
+  <!-- 앱 헤더 -->
+  <div class="app-header">
+    <h1>📋 오늘 실적 입력</h1>
+    <div class="subtitle">홍은동 355번지 가로주택 신축공사</div>
+    <div class="discipline-badge">⚙️ 기계설비</div>
+  </div>
+
+  <!-- 날짜 표시 -->
+  <div class="date-bar">📅 2026년 6월 9일 (화) · 현장담당자: 김기계</div>
+
+  <div class="content">
+
+    <!-- 활동 선택 -->
+    <div class="section-label">📌 작업 항목 선택</div>
+    <div class="select-wrap">
+      <select>
+        <option>위생배관 — B1층 급수/배수 배관</option>
+        <option>공조덕트 — 2층 급기덕트 설치</option>
+        <option>소방배관 — 옥상 스프링클러</option>
+      </select>
+    </div>
+
+    <!-- 진행률 슬라이더 -->
+    <div class="section-label">📊 오늘 진행률</div>
+    <div class="progress-section">
+      <div class="progress-header">
+        <div class="progress-label">누적 달성률</div>
+        <div class="progress-value">65<span>%</span></div>
+      </div>
+      <div class="slider-track">
+        <div class="slider-fill"></div>
+        <div class="slider-thumb"></div>
+      </div>
+      <div class="slider-marks">
+        <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+      </div>
+      <div class="prev-record">어제 실적: <span>60%</span> → 오늘 +5% 향상</div>
+    </div>
+
+    <!-- 투입 인원 -->
+    <div class="section-label">👷 오늘 투입 인원</div>
+    <div class="number-input-row">
+      <div class="num-btn">−</div>
+      <div class="num-val">8 명</div>
+      <div class="num-btn">+</div>
+    </div>
+
+    <!-- 공사일보 스캔 -->
+    <div class="section-label">📄 공사일보 첨부 (선택)</div>
+    <div class="scan-btn">
+      <span class="scan-icon">📷</span>
+      <div>
+        <div>일보 사진 찍기 / 파일 업로드</div>
+        <div style="font-size:11px;font-weight:400;color:#5580a8;margin-top:2px;">AI가 자동으로 내용 추출</div>
+      </div>
+    </div>
+
+    <!-- 특이사항 -->
+    <div class="section-label">💬 특이사항 (선택)</div>
+    <textarea placeholder="예) 자재 납기 지연으로 B1층 급수배관 2일 지연 예상">위생배관 자재 도착 완료. 내일 B2층 배관 착수 예정.</textarea>
+
+    <!-- 제출 버튼 -->
+    <button class="submit-btn">✅ 오늘 실적 제출</button>
+
+    <!-- 최근 기록 -->
+    <div class="recent-box">
+      <div class="recent-title">✔ 최근 제출 기록</div>
+      <div class="recent-row"><span>6/8 (월)</span><strong>60% · 7명</strong><span>정상 처리됨</span></div>
+      <div class="recent-row"><span>6/7 (일)</span><strong>55% · 6명</strong><span>정상 처리됨</span></div>
+      <div class="recent-row"><span>6/6 (토)</span><strong>55% · 5명</strong><span>정상 처리됨</span></div>
+    </div>
+
+  </div>
+  <div class="safe-area"></div>
+</div>
+</body>
+</html>

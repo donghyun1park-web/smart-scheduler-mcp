@@ -1,0 +1,79 @@
+{
+  "_note": "홍은동 토공사 운영 시뮬레이션 이벤트 ②③④ 일일 실적 샘플. planned_qty=당일 목표, actual_qty=당일 실적. repo core.progress 로 진척 집계 후 core.delay_detection / core.recovery 검증.",
+  "events": [
+    {
+      "event": "②",
+      "label": "계측 경보(지중경사계 변위) -> 1단 굴착 중단",
+      "root_cause_hint": "instrumentation_alert",
+      "activity": {
+        "activity_id": "A5",
+        "name": "1단 굴착(풍화토)",
+        "owner": "토공사담당",
+        "status": "in_progress",
+        "discipline": "토목",
+        "zone": "전체",
+        "planned_progress_pct": 100.0,
+        "predecessors": [
+          {"activity_id": "A4", "name": "복공판 설치", "status": "completed"}
+        ]
+      },
+      "daily_records": [
+        {"work_date": "2026-09-03", "planned_qty": 585, "actual_qty": 585, "workers": 8, "equipment": "백호2 덤프4", "remarks": "정상 굴착"},
+        {"work_date": "2026-09-04", "planned_qty": 585, "actual_qty": 585, "workers": 8, "equipment": "백호2 덤프4", "remarks": "정상 굴착"},
+        {"work_date": "2026-09-07", "planned_qty": 585, "actual_qty": 120, "workers": 8, "equipment": "백호2 덤프4", "remarks": "지중경사계 INC-03 변위 1차 관리기준 초과, 오후 굴착 중단"},
+        {"work_date": "2026-09-08", "planned_qty": 585, "actual_qty": 0, "workers": 6, "equipment": "백호1", "remarks": "해당 단 버팀보 선행 설치, 굴착 중단"},
+        {"work_date": "2026-09-09", "planned_qty": 585, "actual_qty": 300, "workers": 8, "equipment": "백호2 덤프4", "remarks": "계측 안정 확인 후 굴착 부분 재개"}
+      ]
+    },
+    {
+      "event": "③",
+      "label": "미진동 발파 민원 -> 발파시간 제한 -> 암반 굴착 생산성 저하",
+      "root_cause_hint": "equipment_delay",
+      "activity": {
+        "activity_id": "A9",
+        "name": "암반 굴착(미진동+할암)",
+        "owner": "토공사담당",
+        "status": "in_progress",
+        "discipline": "토목",
+        "zone": "전체",
+        "planned_progress_pct": 100.0,
+        "planned_workers": 14,
+        "actual_workers": 14
+      },
+      "daily_records": [
+        {"work_date": "2026-11-10", "planned_qty": 210, "actual_qty": 150, "workers": 14, "equipment": "백호7 덤프7 발파팀", "remarks": "발파시간 09-17시 제한(민원)"},
+        {"work_date": "2026-11-11", "planned_qty": 210, "actual_qty": 156, "workers": 14, "equipment": "백호7 덤프7 발파팀", "remarks": "발파시간 제한 지속"},
+        {"work_date": "2026-11-12", "planned_qty": 210, "actual_qty": 144, "workers": 14, "equipment": "백호7 덤프7 발파팀", "remarks": "진동 민원 추가, 천공만 진행 구간 발생"},
+        {"work_date": "2026-11-13", "planned_qty": 210, "actual_qty": 150, "workers": 14, "equipment": "백호7 덤프7 발파팀", "remarks": "할암공법 병행 구간 확대"},
+        {"work_date": "2026-11-16", "planned_qty": 210, "actual_qty": 162, "workers": 14, "equipment": "백호7 덤프7 발파팀", "remarks": "발파 1회/일로 제한"},
+        {"work_date": "2026-11-17", "planned_qty": 210, "actual_qty": 150, "workers": 14, "equipment": "백호7 덤프7 발파팀", "remarks": "민원 지속"},
+        {"work_date": "2026-11-18", "planned_qty": 210, "actual_qty": 156, "workers": 14, "equipment": "백호7 덤프7 발파팀", "remarks": "민원 지속"},
+        {"work_date": "2026-11-19", "planned_qty": 210, "actual_qty": 150, "workers": 14, "equipment": "백호7 덤프7 발파팀", "remarks": "민원 지속"}
+      ]
+    },
+    {
+      "event": "④",
+      "label": "동절기 + 지하수위 상승 -> 숏크리트 양생 지연",
+      "root_cause_hint": "weather_delay",
+      "activity": {
+        "activity_id": "A8",
+        "name": "숏크리트",
+        "owner": "토공사담당",
+        "status": "in_progress",
+        "discipline": "토목",
+        "zone": "사면",
+        "planned_progress_pct": 100.0,
+        "inspections": [
+          {"inspection_type": "숏크리트 양생 검측", "planned_date": "2027-01-15", "actual_date": null, "status": "planned"}
+        ]
+      },
+      "daily_records": [
+        {"work_date": "2027-01-12", "planned_qty": 300, "actual_qty": 180, "workers": 5, "equipment": "숏크리트장비1", "remarks": "혹한기 양생 지연, 보온양생 추가"},
+        {"work_date": "2027-01-13", "planned_qty": 300, "actual_qty": 170, "workers": 5, "equipment": "숏크리트장비1", "remarks": "지하수위 상승, 펌프 증설"},
+        {"work_date": "2027-01-14", "planned_qty": 300, "actual_qty": 0, "workers": 0, "equipment": "-", "remarks": "한파경보, 타설 중단"},
+        {"work_date": "2027-01-15", "planned_qty": 300, "actual_qty": 190, "workers": 5, "equipment": "숏크리트장비1", "remarks": "양생 검측 지연(기온 미달)"},
+        {"work_date": "2027-01-16", "planned_qty": 300, "actual_qty": 200, "workers": 5, "equipment": "숏크리트장비1", "remarks": "오후 타설 재개"}
+      ]
+    }
+  ]
+}

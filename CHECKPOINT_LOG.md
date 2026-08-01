@@ -797,3 +797,121 @@ Date: 2026-05-21
   review before applying to real project DBs.
 - EVM S-curve uses DB-available daily records when present; otherwise it marks
   planned progress as a temporary proxy for missing actual progress.
+
+## v2.5 Operations Center
+
+Date: 2026-05-21
+
+### Changed Files
+
+- `core/data_health.py`
+- `core/next_actions.py`
+- `core/evm_explain.py`
+- `core/workflows.py`
+- `tools/diagnostic_tools.py`
+- `viewer/components/operations_home.py`
+- `viewer/pages/00_operations_center.py`
+- `server.py`
+- `tests/test_data_health.py`
+- `tests/test_next_actions.py`
+- `tests/test_evm_explain.py`
+- `tests/test_workflows.py`
+- `tests/test_operations_home.py`
+- `tests/test_diagnostic_tools_v2_5.py`
+- `tests/test_server.py`
+- `docs/AI_USAGE_GUIDE_v2_5_OPERATIONS_CENTER.md`
+- `docs/PR_DESCRIPTION_v2_5.md`
+- `CLAUDE.md`
+
+### Implemented
+
+- Added read-only data health scoring with Korean issue messages, severity
+  counts, and status bands.
+- Added profile-based next action candidates for field admin, site manager, HQ,
+  and developer workflows.
+- Added Korean plain-language EVM explanation helpers.
+- Added daily close and weekly report precheck workflow status helpers.
+- Registered four v2.5 MCP tools: `check_data_health`,
+  `suggest_next_actions`, `explain_evm_from_db`, and `get_workflow_status`.
+- Added a Streamlit Operations Center home page that reuses existing DB,
+  dashboard, EVM, and workflow helpers.
+- Added a one-page AI usage guide and PR description draft.
+
+### Commands Run
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_data_health.py tests/test_next_actions.py tests/test_evm_explain.py tests/test_workflows.py tests/test_operations_home.py tests/test_diagnostic_tools_v2_5.py tests/test_server.py::test_build_server_registers_v2_5_operations_center_tools -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m mypy .
+.\.venv\Scripts\python.exe -c "from server import build_server; tools=sorted(build_server()._tool_manager._tools); print(len(tools)); print('\n'.join(tools))"
+.\.venv\Scripts\python.exe -c "from viewer.components.operations_home import build_operations_home_state; from tools.diagnostic_tools import check_data_health, suggest_next_actions, explain_evm_from_db, get_workflow_status; db='samples/v2_3_sample.scheduler'; state=build_operations_home_state(db, profile='site_manager'); health=check_data_health(db); actions=suggest_next_actions(db, profile='site_manager'); evm=explain_evm_from_db(db); workflow=get_workflow_status(db); print('health', health['status'], health['score'], health['error_count'], health['warning_count']); print('actions', len(actions['actions'])); print('evm', evm['explanation']['status']); print('workflow', workflow['daily_close']['ready'], workflow['weekly_report_precheck']['ready']); print('state_keys', sorted(state.keys()))"
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m mypy .
+git diff --check
+```
+
+### Test Result
+
+- New v2.5 tests before implementation: failed as expected with missing
+  `core.data_health`, `core.next_actions`, `core.evm_explain`,
+  `core.workflows`, `tools.diagnostic_tools`, and
+  `viewer.components.operations_home`.
+- Focused v2.5 tests after implementation: `16 passed`.
+- Early `ruff check .`: fixed an unused import in `core/next_actions.py`.
+- Early `mypy .`: fixed mapping/profile/totals typing in next actions,
+  diagnostic tools, and Operations Center state.
+- Sample DB smoke: `health healthy 85 0 2`, `actions 4`,
+  `evm not_available`, `workflow False False`, expected because the sample DB
+  has no recent daily record for the default as-of date.
+- MCP tool count: `44`.
+- Full suite: `235 passed, 16 warnings in 515.61s`.
+- Final `ruff check .`: `All checks passed!`.
+- Final `mypy .`: `Success: no issues found in 148 source files`.
+- `git diff --check`: exit 0 with LF-to-CRLF working-copy warnings only.
+
+### Remaining Risks
+
+- Operations Center is a v2.5 read-only first pass; auth/permissions,
+  import-batch undo, portfolio view, mobile alerts, and real-time monitoring
+  remain later-version candidates.
+- The sample DB smoke confirms shape and diagnostics, but real field DB smoke
+  should still be run on a copied `.scheduler` file before operational use.
+
+## v2.6 Event-Driven Notification System (MVP)
+
+Date: 2026-05-29
+
+### Changed Files
+
+- core/models.py
+- core/db.py
+- core/notifications.py
+- iewer/pages/10_notification_simulator.py
+
+### Implemented
+
+- Added status field (PENDING, RUNNING, DONE, DELAYED) to the Activity model and ctivities table with automatic v4 schema migration.
+- Added NotificationLog model and 
+otification_logs table schema for recording triggered notifications.
+- Implemented update_activity_status and _dispatch_notifications in core/notifications.py to identify successor activities and auto-generate draft notification logs when a predecessor is marked DONE or DELAYED.
+- Created a PoC Streamlit dashboard (10_notification_simulator.py) to simulate field-input status changes and view the resulting notification dispatch logs and dependency table in real-time.
+
+### Commands Run
+
+\\\powershell
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m mypy .
+\\\
+
+### Test Result
+
+- \pytest -q\: \395 passed, 16 warnings\.
+- \uff check .\: Fixed an import issue and remaining checks passed.
+- \mypy .\: Fixed an integer typing error with \cursor.lastrowid\ in \db.py\, then passed successfully.
+
+### Remaining Risks
+
+- The notification system only records logs; integration with real external notification services (e.g., Slack, Kakao) is deferred.
+

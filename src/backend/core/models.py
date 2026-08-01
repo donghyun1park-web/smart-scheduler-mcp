@@ -1,0 +1,369 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
+from datetime import date
+from typing import Any, Literal
+
+from core.disciplines import ALLOWED_DISCIPLINES as DISCIPLINE_CHOICES
+from core.disciplines import validate_discipline
+
+ALLOWED_DISCIPLINES = DISCIPLINE_CHOICES
+ALLOWED_REL_TYPES = frozenset({"FS", "SS", "FF"})
+RelType = Literal["FS", "SS", "FF"]
+Discipline = Literal["위생", "공조", "소방", "전기", "자동제어", "공통", "토목", "건축", "기계설비", "소방설비", "전기설비"]
+
+
+@dataclass(frozen=True)
+class Project:
+    project_id: str
+    name: str
+    start_date: date
+    calendar_id: str
+    description: str = ""
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class WBS:
+    wbs_id: str
+    parent_id: str | None
+    code: str
+    name: str
+    sort_order: int = 0
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class Activity:
+    activity_id: str
+    code: str
+    name: str
+    wbs_id: str
+    discipline: str
+    zone: str
+    duration: int
+    cost: float = 0.0
+    es_workday: int | None = None
+    ef_workday: int | None = None
+    ls_workday: int | None = None
+    lf_workday: int | None = None
+    es_date: date | None = None
+    ef_date: date | None = None
+    total_float: int | None = None
+    is_critical: bool = False
+    progress_pct: float = 0.0
+    status: str = "PENDING"
+    created_at: str | None = None
+    updated_at: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "discipline", validate_discipline(self.discipline))
+        if self.duration < 0:
+            raise ValueError("Activity duration cannot be negative")
+        if not 0.0 <= float(self.progress_pct) <= 100.0:
+            raise ValueError(
+                f"Activity progress_pct must be between 0 and 100 (got {self.progress_pct})"
+            )
+
+
+@dataclass(frozen=True)
+class ActivityCpmResult:
+    activity_id: str
+    code: str
+    es_workday: int
+    ef_workday: int
+    ls_workday: int
+    lf_workday: int
+    total_float: int
+    is_critical: bool
+    es_date: date | None = None
+    ef_date: date | None = None
+    ls_date: date | None = None
+    lf_date: date | None = None
+
+
+@dataclass(frozen=True)
+class CpmResult:
+    activities: list[ActivityCpmResult]
+    total_duration_days: int
+    critical_count: int
+    completion_date: date | None = None
+    cycles_detected: list[list[str]] | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "activities": [activity.__dict__ for activity in self.activities],
+            "total_duration_days": self.total_duration_days,
+            "critical_count": self.critical_count,
+            "completion_date": self.completion_date.isoformat()
+            if self.completion_date
+            else None,
+            "cycles_detected": self.cycles_detected or [],
+        }
+
+
+@dataclass(frozen=True)
+class Relationship:
+    rel_id: str
+    pred_id: str
+    succ_id: str
+    rel_type: str
+    lag_days: int = 0
+    created_at: str | None = None
+    updated_at: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.rel_type not in ALLOWED_REL_TYPES:
+            raise ValueError(f"Unsupported relationship type for v0.1: {self.rel_type}")
+
+
+@dataclass(frozen=True)
+class Calendar:
+    calendar_id: str
+    name: str
+    weekmask: str
+    holidays: tuple[str, ...] = ()
+    created_at: str | None = None
+    updated_at: str | None = None
+
+    def __post_init__(self) -> None:
+        if len(self.weekmask) != 7 or any(char not in {"0", "1"} for char in self.weekmask):
+            raise ValueError("Calendar weekmask must be a 7-character 0/1 string")
+
+
+@dataclass(frozen=True)
+class DailyRecord:
+    record_id: str
+    activity_id: str
+    work_date: date
+    planned_qty: float = 0.0
+    actual_qty: float = 0.0
+    workers: int = 0
+    equipment: str = ""
+    owner: str = ""
+    remarks: str = ""
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class CostItem:
+    cost_item_id: str
+    activity_id: str
+    contract_amount: float = 0.0
+    execution_budget: float = 0.0
+    invested_cost: float = 0.0
+    billing_amount: float = 0.0
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class LaborRecord:
+    """직종별 일일 출력인원 1건 (출역일보 기반, v3.7).
+
+    실제 현장의 출역일보는 협력사·공종 단위로 직종별 인원을 집계한다.
+    (예: 관리자 8, 배관공 25, 덕트공 12 ...). activity 연결은 선택.
+    """
+    labor_id: str
+    work_date: date
+    trade: str                    # 직종 (관리자/배관공/덕트공/보온공/시공팀 ...)
+    headcount: int = 0
+    foreign_count: int = 0        # 외국인 인원 (headcount 중 일부)
+    discipline: str = ""          # 공종 (일반설비/자동제어/기계설비 ...)
+    company: str = ""             # 협력사명
+    activity_id: str = ""         # 선택적 활동 연결 (빈 문자열 = 미연결)
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class BaselineSnapshot:
+    snapshot_id: str
+    baseline_id: str
+    activity_id: str
+    start_date: date | None
+    finish_date: date | None
+    duration: int
+    revision: str
+    project_id: str = ""
+    approved_by: str = ""
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class MaterialRecord:
+    material_id: str
+    activity_id: str
+    material_name: str
+    order_date: date | None = None
+    expected_date: date | None = None
+    actual_date: date | None = None
+    status: str = "planned"
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class InspectionRecord:
+    inspection_id: str
+    activity_id: str
+    inspection_type: str
+    planned_date: date | None = None
+    actual_date: date | None = None
+    status: str = "planned"
+    approver: str = ""
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class ChangeLogEntry:
+    change_id: str
+    target_table: str
+    target_id: str
+    before_value: str
+    after_value: str
+    reason: str
+    user: str
+    approved_by: str = ""
+    changed_at: date | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class ProjectSettings:
+    settings_id: str
+    project_id: str
+    disciplines: tuple[str, ...] = ()
+    thresholds: dict[str, Any] | None = None
+    report_style: str = "weekly_meeting"
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class DelayEvent:
+    delay_event_id: str
+    activity_id: str
+    delay_type: str = "non_excusable"
+    cause_code: str = "other"
+    responsible_party: str = ""
+    start_date: date | None = None
+    end_date: date | None = None
+    delay_days: int = 0
+    cost_impact: float = 0.0
+    description: str = ""
+    status: str = "open"
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class ChangeOrder:
+    co_id: str
+    title: str
+    description: str = ""
+    co_type: str = "scope_addition"
+    status: str = "draft"
+    requested_by: str = ""
+    approved_by: str = ""
+    request_date: date | None = None
+    approval_date: date | None = None
+    direct_cost: float = 0.0
+    markup_pct: float = 0.0
+    total_cost: float = 0.0
+    schedule_impact_days: int = 0
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class ChangeOrderItem:
+    co_item_id: str
+    co_id: str
+    activity_id: str
+    cost_change: float = 0.0
+    duration_change: int = 0
+    description: str = ""
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+CO_TYPES = frozenset({
+    "scope_addition", "design_change", "owner_directed",
+    "field_condition", "value_engineering",
+})
+
+CO_STATUSES = frozenset({"draft", "pending", "approved", "rejected", "applied"})
+
+CO_TYPE_KR: dict[str, str] = {
+    "scope_addition": "범위 추가",
+    "design_change": "설계변경",
+    "owner_directed": "발주처 지시",
+    "field_condition": "현장 조건 변경",
+    "value_engineering": "VE 제안",
+}
+
+CO_STATUS_KR: dict[str, str] = {
+    "draft": "초안",
+    "pending": "검토중",
+    "approved": "승인",
+    "rejected": "반려",
+    "applied": "실반영완료",
+}
+
+
+DELAY_TYPES = frozenset({
+    "excusable_compensable",
+    "excusable_non_compensable",
+    "non_excusable",
+    "concurrent",
+})
+
+DELAY_CAUSES = frozenset({
+    "owner_change", "design_error", "weather", "material_delay",
+    "labor_shortage", "permit_delay", "site_condition", "subcontractor", "other",
+})
+
+DELAY_TYPE_KR: dict[str, str] = {
+    "excusable_compensable": "면책보상가능",
+    "excusable_non_compensable": "면책보상불가",
+    "non_excusable": "비면책",
+    "concurrent": "동시지연",
+}
+
+DELAY_CAUSE_KR: dict[str, str] = {
+    "owner_change": "발주처 변경",
+    "design_error": "설계 오류",
+    "weather": "기상 영향",
+    "material_delay": "자재 지연",
+    "labor_shortage": "인력 부족",
+    "permit_delay": "인허가 지연",
+    "site_condition": "현장 조건",
+    "subcontractor": "협력업체",
+    "other": "기타",
+}
+
+
+def with_timestamps(model, created_at: str | None = None, updated_at: str | None = None):
+    return replace(
+        model,
+        created_at=created_at if created_at is not None else model.created_at,
+        updated_at=updated_at if updated_at is not None else model.updated_at,
+    )
+
+
+@dataclass(frozen=True)
+class NotificationLog:
+    log_id: int
+    activity_id: str
+    target_role: str
+    notification_type: str
+    message: str
+    is_sent: bool = False
+    created_at: str | None = None

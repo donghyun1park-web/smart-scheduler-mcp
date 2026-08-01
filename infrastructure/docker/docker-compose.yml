@@ -1,0 +1,85 @@
+version: "3.9"
+
+# ────────────────────────────────────────────────────────────────
+# Smart Scheduler — NAS Docker Compose  (v3.4)
+#
+# 사용법 (NAS SSH 접속 후):
+#   cp .env.example .env        # GEMINI_API_KEY 등 입력
+#   docker-compose -f infrastructure/docker/docker-compose.yml up -d
+#
+# .scheduler 파일 위치:
+#   NAS: /volume1/scheduler/현장명.scheduler
+#   컨테이너: /data/현장명.scheduler
+#
+# 핸드폰 북마크 URL (포트 8501 하나로 통일):
+#   건축:     http://NAS_IP:8501?discipline=건축&db=/data/현장.scheduler
+#   기계설비:  http://NAS_IP:8501?discipline=기계설비&db=/data/현장.scheduler
+#   전기설비:  http://NAS_IP:8501?discipline=전기설비&db=/data/현장.scheduler
+#   토목:     http://NAS_IP:8501?discipline=토목&db=/data/현장.scheduler
+#
+# v3.4 변경: 폴더 재구성 — src/{backend,frontend}/, infrastructure/docker/
+# v3.3 변경: report-scanner(8502) 서비스 제거 → app_mobile.py에 통합
+# ────────────────────────────────────────────────────────────────
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.api
+    container_name: scheduler-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - scheduler-data:/data        # .scheduler DB 파일 공유 볼륨
+    environment:
+      - DEFAULT_DB_PATH=/data/현장.scheduler
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  mobile:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.streamlit
+    container_name: scheduler-mobile
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000                    # 컨테이너 내부 통신
+      - DEFAULT_DB_PATH=/data/현장.scheduler
+      - STREAMLIT_APP=frontend/app_mobile.py
+      # Vision AI — 공사일보 촬영 기능 (app_mobile.py에 통합)
+      - VISION_PROVIDER=${VISION_PROVIDER:-gemini}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}         # 무료: https://aistudio.google.com
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}   # claude 선택 시
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # 카카오 챗봇 스킬서버용 HTTPS 터널 (v3.6)
+  # TUNNEL_TOKEN 없으면 컨테이너만 재시작 반복 — 사용 전 .env에 토큰 설정
+  # 발급: Cloudflare Zero Trust → Networks → Tunnels (docs/KAKAO_SETUP_GUIDE.md 참조)
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: scheduler-tunnel
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN:-}
+    depends_on:
+      - api
+    restart: unless-stopped
+    profiles: ["kakao"]        # docker-compose --profile kakao up -d 로만 기동
+
+volumes:
+  scheduler-data:
+    # NAS 볼륨을 직접 마운트하려면 아래 주석 해제 후 경로 수정
+    # driver: local
+    # driver_opts:
+    #   type: none
+    #   o: bind
+    #   device: /volume1/scheduler

@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>현장 실적 입력 v2</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #f0f2f6;
+    font-family: 'Malgun Gothic', -apple-system, sans-serif;
+    font-size: 15px;
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    padding: 20px;
+    flex-wrap: wrap;
+  }
+
+  /* ─ 공통 폰 프레임 ─ */
+  .phone-frame {
+    width: 390px;
+    background: #fff;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    border-radius: 44px;
+    flex-shrink: 0;
+  }
+  .status-bar {
+    background: #1a56a0;
+    color: white;
+    padding: 14px 24px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .app-header {
+    background: #1a56a0;
+    color: white;
+    padding: 10px 20px 16px;
+    text-align: center;
+  }
+  .app-header h1 { font-size: 19px; font-weight: 800; }
+  .app-header .subtitle { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+  .discipline-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.22);
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-top: 7px;
+    border: 1.5px solid rgba(255,255,255,0.45);
+  }
+
+  /* ─ 스텝 인디케이터 ─ */
+  .steps {
+    background: #e8f0fd;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    border-bottom: 1px solid #c5d8f5;
+  }
+  .step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    flex: 1;
+  }
+  .step-circle {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800;
+    border: 2px solid #c5d8f5;
+    background: white;
+    color: #aab;
+  }
+  .step.done .step-circle { background: #27ae60; border-color: #27ae60; color: white; font-size: 11px; }
+  .step.active .step-circle { background: #1a56a0; border-color: #1a56a0; color: white; }
+  .step-label { font-size: 10px; color: #6b8aaa; font-weight: 600; }
+  .step.done .step-label { color: #27ae60; }
+  .step.active .step-label { color: #1a56a0; }
+  .step-line { width: 30px; height: 2px; background: #c5d8f5; margin-bottom: 14px; }
+  .step-line.done { background: #27ae60; }
+
+  .content { padding: 16px; }
+
+  .section-label {
+    font-size: 11px; font-weight: 700; color: #555;
+    text-transform: uppercase; letter-spacing: 0.4px;
+    margin-bottom: 6px; margin-top: 14px;
+  }
+  .section-label:first-child { margin-top: 0; }
+
+  /* ─ STEP 1: 카메라 화면 ─ */
+  .camera-main {
+    background: linear-gradient(160deg, #0d1f3c, #1a3a6e);
+    border-radius: 16px;
+    padding: 28px 20px;
+    text-align: center;
+    margin-bottom: 14px;
+    border: 2px dashed rgba(96,165,250,0.4);
+    position: relative;
+    overflow: hidden;
+  }
+  .camera-main::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 40%, rgba(96,165,250,0.08), transparent 70%);
+  }
+  .camera-icon-big { font-size: 52px; margin-bottom: 10px; }
+  .camera-main h2 { font-size: 18px; font-weight: 800; color: #e0eeff; margin-bottom: 6px; }
+  .camera-main p { font-size: 12px; color: #7aaed8; line-height: 1.6; }
+
+  .btn-camera {
+    display: block; width: 100%;
+    background: linear-gradient(135deg, #1a56a0, #3b82f6);
+    color: white; border: none; border-radius: 14px;
+    padding: 16px; font-size: 16px; font-weight: 800;
+    cursor: pointer; margin-bottom: 10px;
+    box-shadow: 0 4px 16px rgba(26,86,160,0.35);
+    letter-spacing: 0.3px;
+  }
+  .btn-file {
+    display: block; width: 100%;
+    background: #f0f4fa; color: #1a56a0;
+    border: 1.5px solid #c5d8f5; border-radius: 14px;
+    padding: 13px; font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  .divider-or {
+    text-align: center; font-size: 12px; color: #aab;
+    margin: 8px 0; position: relative;
+  }
+  .divider-or::before, .divider-or::after {
+    content: ''; position: absolute; top: 50%; width: 38%; height: 1px; background: #e0e8f0;
+  }
+  .divider-or::before { left: 0; }
+  .divider-or::after { right: 0; }
+
+  .manual-link {
+    text-align: center; font-size: 12px; color: #888;
+    padding: 8px; cursor: pointer; text-decoration: underline;
+  }
+
+  /* ─ STEP 2: AI 파싱 완료 — 결과 검토/수정 화면 ─ */
+  .ai-result-header {
+    background: linear-gradient(135deg, #0a2e1a, #0f4026);
+    border: 1.5px solid #2a7a4a;
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .ai-thumb {
+    width: 52px; height: 52px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #1a3a6e, #2a5aaa);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+    border: 1.5px solid #3b6ab0;
+  }
+  .ai-info { flex: 1; }
+  .ai-info .ai-title { font-size: 13px; font-weight: 800; color: #34d399; }
+  .ai-info .ai-sub { font-size: 11px; color: #6ba87a; margin-top: 2px; }
+  .ai-conf {
+    background: rgba(52,211,153,0.12);
+    color: #34d399; font-size: 11px; font-weight: 700;
+    padding: 3px 8px; border-radius: 8px; border: 1px solid rgba(52,211,153,0.3);
+  }
+
+  /* AI 배지 */
+  .ai-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(52,211,153,0.1); color: #27ae60;
+    border: 1px solid rgba(52,211,153,0.3); border-radius: 6px;
+    font-size: 10px; font-weight: 700; padding: 1px 7px;
+    vertical-align: middle; margin-left: 6px;
+  }
+  .manual-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(251,191,36,0.1); color: #d4930a;
+    border: 1px solid rgba(251,191,36,0.3); border-radius: 6px;
+    font-size: 10px; font-weight: 700; padding: 1px 7px;
+    vertical-align: middle; margin-left: 6px;
+  }
+
+  /* 입력 필드 */
+  select, input[type=text], textarea {
+    width: 100%;
+    border: 1.5px solid #d1dce8;
+    border-radius: 10px;
+    padding: 11px 13px;
+    font-size: 14px;
+    font-family: inherit;
+    color: #222;
+    background: #fafcff;
+    appearance: none; -webkit-appearance: none;
+    outline: none;
+  }
+  select:focus, input:focus, textarea:focus { border-color: #1a56a0; background: #fff; }
+  .select-wrap { position: relative; }
+  .select-wrap::after {
+    content: '▾'; position: absolute; right: 12px; top: 50%;
+    transform: translateY(-50%); color: #1a56a0; pointer-events: none;
+  }
+
+  /* AI 자동입력된 필드 */
+  .field-ai {
+    border-color: #34d399 !important;
+    background: #f2fff8 !important;
+  }
+  /* 사용자가 수정한 필드 */
+  .field-edited {
+    border-color: #f59e0b !important;
+    background: #fffbf0 !important;
+  }
+
+  /* 진행률 */
+  .progress-card {
+    background: #f5f8ff;
+    border: 1.5px solid #34d399;
+    background: #f2fff8;
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .progress-row {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+  }
+  .progress-val { font-size: 28px; font-weight: 800; color: #1a56a0; }
+  .progress-val span { font-size: 16px; }
+  .slider-track {
+    height: 6px; background: #dde5f0; border-radius: 3px; position: relative;
+  }
+  .slider-fill {
+    position: absolute; left: 0; top: 0; height: 100%;
+    width: 72%; background: linear-gradient(90deg, #1a56a0, #3b82f6); border-radius: 3px;
+  }
+  .slider-thumb {
+    position: absolute; width: 22px; height: 22px;
+    background: white; border: 3px solid #1a56a0; border-radius: 50%;
+    top: 50%; left: 72%; transform: translate(-50%, -50%);
+    box-shadow: 0 2px 6px rgba(26,86,160,0.3);
+  }
+  .slider-marks {
+    display: flex; justify-content: space-between;
+    font-size: 10px; color: #999; padding: 4px 2px 0;
+  }
+  .ai-extracted-row {
+    font-size: 11px; color: #27ae60; margin-top: 6px;
+    display: flex; justify-content: space-between;
+  }
+
+  /* 인원 */
+  .number-input-row {
+    display: flex; align-items: center;
+    background: #f2fff8; border: 1.5px solid #34d399; border-radius: 10px; overflow: hidden;
+  }
+  .num-btn {
+    width: 52px; height: 52px; display: flex; align-items: center; justify-content: center;
+    font-size: 26px; color: #1a56a0; background: #e0f5eb;
+    cursor: pointer; font-weight: 300; flex-shrink: 0;
+  }
+  .num-val { flex: 1; text-align: center; font-size: 22px; font-weight: 700; color: #222; }
+
+  textarea { height: 72px; resize: none; }
+
+  /* 경고 메시지 */
+  .ai-warning {
+    background: rgba(251,191,36,0.1);
+    border: 1px solid rgba(251,191,36,0.4);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 12px; color: #92700a;
+    display: flex; gap: 8px; align-items: flex-start;
+    margin-top: 10px;
+  }
+
+  /* 제출 버튼 */
+  .btn-submit {
+    width: 100%;
+    background: linear-gradient(135deg, #1a56a0, #3b82f6);
+    color: white; border: none; border-radius: 14px;
+    padding: 17px; font-size: 17px; font-weight: 800;
+    cursor: pointer; margin-top: 18px;
+    box-shadow: 0 4px 16px rgba(26,86,160,0.35);
+  }
+  .btn-retake {
+    width: 100%; background: #f0f4fa; color: #1a56a0;
+    border: 1.5px solid #c5d8f5; border-radius: 14px;
+    padding: 12px; font-size: 13px; font-weight: 700;
+    cursor: pointer; margin-top: 8px;
+  }
+
+  /* 파싱 항목 확인 */
+  .parsed-items {
+    background: #f8fffe; border: 1px solid #b2e8d0; border-radius: 10px;
+    padding: 10px 12px; margin-top: 10px;
+  }
+  .parsed-title { font-size: 11px; color: #27ae60; font-weight: 700; margin-bottom: 6px; }
+  .parsed-row { display: flex; justify-content: space-between; font-size: 12px; color: #444; padding: 3px 0; border-bottom: 1px solid #e0f5ea; }
+  .parsed-row:last-child { border-bottom: none; }
+  .parsed-row strong { color: #1a7a4a; }
+
+  /* 화면 제목 배너 */
+  .screen-title {
+    text-align: center; font-size: 13px; font-weight: 800;
+    color: #fff; background: #444; padding: 6px;
+    letter-spacing: 0.5px;
+  }
+  .screen-title.blue { background: #1a56a0; }
+  .screen-title.green { background: #1a7a4a; }
+
+  .safe-area { height: 30px; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     화면 A: STEP 1 — 공사일보 촬영 (첫 화면)
+══════════════════════════════════════════════ -->
+<div class="phone-frame">
+  <div class="status-bar">
+    <span>09:42</span><span>● ● ●</span><span>WiFi 🔋 87%</span>
+  </div>
+  <div class="app-header">
+    <h1>📋 오늘 실적 입력</h1>
+    <div class="subtitle">홍은동 355번지 가로주택 신축공사</div>
+    <div class="discipline-badge">⚙️ 기계설비 · 김기계</div>
+  </div>
+
+  <!-- 스텝 표시 -->
+  <div class="steps">
+    <div class="step active">
+      <div class="step-circle">1</div>
+      <div class="step-label">일보 촬영</div>
+    </div>
+    <div class="step-line"></div>
+    <div class="step">
+      <div class="step-circle">2</div>
+      <div class="step-label">AI 확인</div>
+    </div>
+    <div class="step-line"></div>
+    <div class="step">
+      <div class="step-circle">3</div>
+      <div class="step-label">제출</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- 카메라 중심 UI -->
+    <div class="camera-main">
+      <div class="camera-icon-big">📷</div>
+      <h2>공사일보를 찍어주세요</h2>
+      <p>협력업체로부터 받은 일보를<br>카메라로 찍으면 AI가 자동으로<br>모든 내용을 입력해 드립니다</p>
+    </div>
+
+    <button class="btn-camera">📷 카메라로 일보 찍기</button>
+    <div class="divider-or">또는</div>
+    <button class="btn-file">📁 파일 선택 (Excel · JPG · PDF)</button>
+
+    <!-- 수동입력 링크 (보조) -->
+    <div class="manual-link">
+      📝 일보 없이 직접 입력하기
+    </div>
+
+    <!-- 오늘 날짜 정보 -->
+    <div style="background:#f5f8ff;border:1px solid #d1dce8;border-radius:10px;padding:12px 14px;margin-top:4px;">
+      <div style="font-size:12px;color:#6b8aaa;margin-bottom:6px;font-weight:600;">📅 오늘 입력 현황</div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;">
+        <span style="color:#555;">작업일</span>
+        <strong style="color:#1a56a0;">2026년 6월 9일 (화)</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:4px;">
+        <span style="color:#555;">어제 실적</span>
+        <span style="color:#e67e22;font-weight:700;">진행률 60% · 7명</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:4px;">
+        <span style="color:#555;">오늘 제출 상태</span>
+        <span style="color:#f59e0b;font-weight:700;">⏳ 미제출</span>
+      </div>
+    </div>
+
+  </div>
+  <div class="safe-area"></div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     화면 B: STEP 2 — AI 추출 완료, 검토/수정
+══════════════════════════════════════════════ -->
+<div class="phone-frame">
+  <div class="status-bar">
+    <span>09:44</span><span>● ● ●</span><span>WiFi 🔋 87%</span>
+  </div>
+  <div class="app-header">
+    <h1>📋 오늘 실적 입력</h1>
+    <div class="subtitle">홍은동 355번지 가로주택 신축공사</div>
+    <div class="discipline-badge">⚙️ 기계설비 · 김기계</div>
+  </div>
+
+  <!-- 스텝 표시 -->
+  <div class="steps">
+    <div class="step done">
+      <div class="step-circle">✓</div>
+      <div class="step-label">일보 촬영</div>
+    </div>
+    <div class="step-line done"></div>
+    <div class="step active">
+      <div class="step-circle">2</div>
+      <div class="step-label">AI 확인</div>
+    </div>
+    <div class="step-line"></div>
+    <div class="step">
+      <div class="step-circle">3</div>
+      <div class="step-label">제출</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- AI 파싱 성공 배너 -->
+    <div class="ai-result-header">
+      <div class="ai-thumb">🤖</div>
+      <div class="ai-info">
+        <div class="ai-title">✅ AI 자동 추출 완료</div>
+        <div class="ai-sub">일보에서 6개 항목 인식 · 2초 소요</div>
+        <div class="ai-sub" style="margin-top:3px;color:#888;">내용을 확인하고 필요시 수정하세요</div>
+      </div>
+      <div class="ai-conf">신뢰도 94%</div>
+    </div>
+
+    <!-- 작업 항목 (AI 추출) -->
+    <div class="section-label">
+      📌 작업 항목
+      <span class="ai-badge">🤖 AI</span>
+    </div>
+    <div class="select-wrap">
+      <select class="field-ai">
+        <option>위생배관 — B1층 급수/배수 배관</option>
+        <option>공조덕트 — 2층 급기덕트 설치</option>
+      </select>
+    </div>
+
+    <!-- 진행률 (AI 추출 + 사용자 수정됨) -->
+    <div class="section-label">
+      📊 오늘 진행률
+      <span class="manual-badge">✏️ 수정됨</span>
+    </div>
+    <div class="progress-card" style="border-color:#f59e0b;background:#fffbf0;">
+      <div class="progress-row">
+        <div style="font-size:13px;color:#555;font-weight:600;">누적 달성률</div>
+        <div class="progress-val">72<span>%</span></div>
+      </div>
+      <div class="slider-track">
+        <div class="slider-fill" style="width:72%"></div>
+        <div class="slider-thumb" style="left:72%"></div>
+      </div>
+      <div class="slider-marks">
+        <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+      </div>
+      <div class="ai-extracted-row">
+        <span style="color:#d4930a;">✏️ AI 추출값 70% → 72%로 수정</span>
+        <span style="color:#aaa;">어제 60%</span>
+      </div>
+    </div>
+
+    <!-- 투입 인원 (AI 추출) -->
+    <div class="section-label">
+      👷 투입 인원
+      <span class="ai-badge">🤖 AI</span>
+    </div>
+    <div class="number-input-row">
+      <div class="num-btn">−</div>
+      <div class="num-val">8 명</div>
+      <div class="num-btn">+</div>
+    </div>
+
+    <!-- 작업 내용 요약 (AI 추출) -->
+    <div class="section-label">
+      💬 작업 내용
+      <span class="ai-badge">🤖 AI</span>
+    </div>
+    <textarea class="field-ai">위생배관 자재 도착 완료. B1층 급수/배수 배관 작업 진행. 내일 B2층 배관 착수 예정.</textarea>
+
+    <!-- AI 추출 세부 항목 확인 -->
+    <div class="parsed-items">
+      <div class="parsed-title">🔍 일보에서 추출한 항목 (펼치기)</div>
+      <div class="parsed-row"><span>설비현황</span><strong>배관 598개 → 사용 3개 → 잔 595개</strong></div>
+      <div class="parsed-row"><span>물품현황</span><strong>형광등 78개 보유</strong></div>
+      <div class="parsed-row"><span>협력사</span><strong>현대설비 (주)</strong></div>
+    </div>
+
+    <!-- AI 신뢰도 낮은 항목 경고 -->
+    <div class="ai-warning">
+      <span>⚠️</span>
+      <div>진행률 <strong>70%</strong>는 일보 글씨가 흐려 불확실합니다. 직접 확인 후 수정하세요.</div>
+    </div>
+
+    <!-- 버튼 -->
+    <button class="btn-submit">✅ 확인 완료 · 제출하기</button>
+    <button class="btn-retake">📷 다시 찍기</button>
+
+  </div>
+  <div class="safe-area"></div>
+</div>
+
+</body>
+</html>

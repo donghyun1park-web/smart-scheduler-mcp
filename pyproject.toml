@@ -28,9 +28,18 @@ test = [
   "python-dotenv>=1.0",
 ]
 
+# v3.4 폴더 재구성: src/backend/ 하위 패키지를 루트 import 경로로 노출
+# pip install -e . 시 src/backend/{core,tools,mep,scripts}가 import 가능
+[tool.setuptools]
+package-dir = {"" = "src/backend"}
+
+[tool.setuptools.packages.find]
+where = ["src/backend"]
+include = ["core*", "tools*", "mep*", "scripts*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = ["src/backend"]
 
 [[tool.mypy.overrides]]
 module = ["networkx", "openpyxl", "pandas", "plotly", "plotly.*", "pyCritical", "xlsxwriter", "xlsxwriter.*"]
